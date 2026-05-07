@@ -1,4 +1,4 @@
-import { Bot, CalendarClock, CheckCircle2, Play } from "lucide-react";
+import { Bot, CalendarClock, CheckCircle2, ChevronRight, Play } from "lucide-react";
 import { EmptyState } from "./EmptyState.jsx";
 
 export function CopilotPanel({
@@ -9,17 +9,23 @@ export function CopilotPanel({
   loading,
   setCommand,
   setProvider,
-  onRunCommand
+  onRunCommand,
+  onHide
 }) {
   const providerName = provider === "openai" ? "OpenAI API" : "Ollama";
 
   return (
     <aside className="copilot">
       <div className="copilotHeader">
-        <Bot size={22} />
-        <div>
-          <strong>Assistant {providerName}</strong>
+        <div className="copilotTitle">
+          <Bot size={22} />
+          <div>
+            <strong>Assistant {providerName}</strong>
+          </div>
         </div>
+        <button type="button" className="copilotHideButton" onClick={onHide} aria-label="Skrij AI asistenta">
+          <ChevronRight size={18} />
+        </button>
       </div>
 
       <form onSubmit={onRunCommand} className="commandForm">
@@ -39,8 +45,14 @@ export function CopilotPanel({
           <h2>Rezultat</h2>
           {result?.interpreted?.intent && <span>{result.interpreted.intent}</span>}
         </div>
-        {result ? (
-          <div className="resultContent">
+        {loading ? (
+          <div className="chatBubble assistantBubble copilotTyping" aria-label="Assistant pripravlja odgovor">
+            <span />
+            <span />
+            <span />
+          </div>
+        ) : result ? (
+          <div className="resultContent chatBubble assistantBubble" key={result.result?.message || result.interpreted?.message || result.interpreted?.intent}>
             <p>{result.result?.message || result.interpreted?.message}</p>
             {result.result?.workOrder && (
               <div className="resultSummary">

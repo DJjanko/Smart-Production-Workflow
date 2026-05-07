@@ -255,6 +255,99 @@ export async function processCustomerOrder({ customerName, productName, quantity
   return output;
 }
 
+export async function processCustomerOrderItems({ customerName, items, requestedDeadline, actor = "admin", llmProvider = "mock", rawInput }) {
+  const started = Date.now();
+  const cleanItems = Array.isArray(items)
+    ? items
+        .map((item) => ({ productId: item.productId, quantity: Number(item.quantity) }))
+        .filter((item) => item.productId && Number.isFinite(item.quantity) && item.quantity > 0)
+    : [];
+
+  if (cleanItems.length === 0) {
+    throw new Error("At least one product item is required.");
+  }
+
+  const products = await Product.find({ _id: { $in: cleanItems.map((item) => item.productId) } })
+    .populate("requiredParts.partId")
+    .lean();
+  const productById = new Map(products.map((product) => [String(product._id), product]));
+  const orderItems = [];
+  const inventoryChecks = [];
+  const partOrders = [];
+
+  for (const item of cleanItems) {
+    const product = productById.get(String(item.productId));
+    if (!product) {
+      throw new Error(`Product "${item.productId}" was not found.`);
+    }
+
+    const inventoryCheck = await checkInventoryForProduct(product, item.quantity);
+    const partOrder = await autoOrderMissingParts(inventoryCheck);
+    await reserveInventory(product, item.quantity);
+
+    orderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity });
+    inventoryChecks.push({ productId: product._id, productName: product.name, quantity: item.quantity, inventoryCheck });
+    if (partOrder) partOrders.push(partOrder);
+  }
+
+  const order = await Order.create({
+    customerName: customerName || "Unknown customer",
+    items: orderItems,
+    requestedDeadline
+  });
+
+  const startDate = new Date();
+  const inventoryStatus = partOrders.length ? "replenished" : "available";
+  const workOrder = await WorkOrder.create({
+    code: await nextWorkOrderCode(),
+    orderId: order._id,
+    items: order.items,
+    status: "planned",
+    startDate,
+    dueDate: requestedDeadline ? new Date(requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),
+    inventoryStatus
+  });
+
+  await Promise.all(
+    partOrders.map((partOrder) => {
+      partOrder.workOrderId = workOrder._id;
+      return partOrder.save();
+    })
+  );
+
+  const phases = [];
+  for (const item of cleanItems) {
+    const product = productById.get(String(item.productId));
+    phases.push(...await generateAndAssignPhases({ workOrder, product, quantity: item.quantity, startDate }));
+  }
+
+  const output = {
+    workOrder,
+    phases,
+    inventoryCheck: inventoryChecks,
+    partOrders,
+    message: `${workOrder.code} created for ${orderItems.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}. Inventory was ${inventoryStatus}.`
+  };
+
+  await ActivityLog.create({
+    actor,
+    action: "process_customer_order",
+    llmProvider,
+    mcpTool: "process_customer_order",
+    input: rawInput || { customerName, items: cleanItems, requestedDeadline },
+    output: {
+      workOrderCode: workOrder.code,
+      itemCount: orderItems.length,
+      phaseCount: phases.length,
+      inventoryStatus,
+      orderedParts: partOrders.flatMap((partOrder) => partOrder.parts || [])
+    },
+    durationMs: Date.now() - started
+  });
+
+  return output;
+}
+
 export async function interpretCommand(command) {
   const normalized = normalize(command);
   const products = await Product.find().lean();

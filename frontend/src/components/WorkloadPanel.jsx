@@ -15,7 +15,7 @@ export function WorkloadPanel({ employees }) {
             <div className="barTrack">
               <div style={{ width: `${Math.min(100, employee.hours * 8)}%` }} />
             </div>
-            <b>{employee.hours}h · {employee.phaseCount}</b>
+            <b>{employee.hours}h / {employee.phaseCount}</b>
           </div>
         ))}
       </div>

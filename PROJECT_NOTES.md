@@ -77,6 +77,15 @@ await loadCurrentPageData();
   - Comparison
 - Assistant-created workflows and manual form actions should both refresh current page variables after completion.
 - MCP and real LLM integration come after the classic MERN workflow is stable.
+- Ollama will be used with these installed local models:
+  - `qwen3:8b`
+  - `llama3.1:8b`
+  - `deepseek-r1:8b`
+- Planned model comparison:
+  - OpenAI API as the primary cloud model.
+  - `qwen3:8b` as the main local Ollama model for workflow/tool-style commands.
+  - `llama3.1:8b` as the stable general local comparison model.
+  - `deepseek-r1:8b` as the reasoning-focused local comparison model.
 
 ## Current Known Issues / Cleanup
 

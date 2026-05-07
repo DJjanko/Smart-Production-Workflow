@@ -2,6 +2,18 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 
+function serializeUser(user) {
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    language: user.language || "sl",
+    avatarUrl: user.avatarUrl || "",
+    createdAt: user.createdAt
+  };
+}
+
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body;
@@ -17,10 +29,7 @@ export async function login(req, res, next) {
       { expiresIn: "8h" }
     );
 
-    res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role }
-    });
+    res.json({ token, user: serializeUser(user) });
   } catch (error) {
     next(error);
   }

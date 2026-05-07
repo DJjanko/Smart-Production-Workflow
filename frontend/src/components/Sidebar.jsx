@@ -1,5 +1,6 @@
 import {
   Boxes,
+  ClipboardList,
   Gauge,
   Hammer,
   LayoutDashboard,
@@ -11,7 +12,20 @@ import {
 } from "lucide-react";
 import logo from "../images/logo.png";
 
-export function Sidebar({ onLogout }) {
+const navItems = [
+  { key: "dashboard", label: "Pregled", icon: LayoutDashboard },
+  { key: "products", label: "Izdelki", icon: Boxes },
+  { key: "inventory", label: "Zaloga", icon: PackageCheck },
+  { key: "employees", label: "Zaposleni", icon: UsersRound },
+  { key: "orders", label: "Narocila", icon: ClipboardList },
+  { key: "workOrders", label: "Delovni nalogi", icon: Hammer },
+  { key: "comparison", label: "Primerjava", icon: Gauge },
+  { key: "settings", label: "Nastavitve", icon: Settings, adminOnly: true }
+];
+
+export function Sidebar({ activePage, onNavigate, onLogout, session }) {
+  const isAdmin = session?.user?.role === "admin";
+
   return (
     <aside className="sidebar">
       <div>
@@ -24,18 +38,24 @@ export function Sidebar({ onLogout }) {
         </div>
 
         <nav className="navList" aria-label="Main">
-          <button className="navItem active"><LayoutDashboard size={18} />Pregled</button>
-          <button className="navItem"><Boxes size={18} />Izdelki</button>
-          <button className="navItem"><PackageCheck size={18} />Zaloga</button>
-          <button className="navItem"><UsersRound size={18} />Zaposleni</button>
-          <button className="navItem"><Hammer size={18} />Delovni nalogi</button>
-          <button className="navItem"><Gauge size={18} />Primerjava</button>
-          <button className="navItem"><Settings size={18} />Nastavitve</button>
+          {navItems.filter((item) => !item.adminOnly || isAdmin).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              className={`navItem ${activePage === key ? "active" : ""}`}
+              onClick={() => onNavigate(key)}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
         </nav>
       </div>
 
       <div className="sidebarBottom">
-        <button className="navItem accountButton">
+        <button
+          className={`navItem accountButton ${activePage === "account" ? "active" : ""}`}
+          onClick={() => onNavigate("account")}
+        >
           <UserCircle size={18} />
           My account
         </button>
