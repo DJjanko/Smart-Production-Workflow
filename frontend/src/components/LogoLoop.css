@@ -1,0 +1,90 @@
+.logoloop {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  --logoloop-gap: 32px;
+  --logoloop-logoHeight: 28px;
+  --logoloop-duration: 30s;
+  --logoloop-direction: normal;
+}
+
+.logoloop__track {
+  display: flex;
+  width: max-content;
+  animation: logoloop-scroll var(--logoloop-duration) linear infinite;
+  animation-direction: var(--logoloop-direction);
+  will-change: transform;
+}
+
+.logoloop--pause-hover:hover .logoloop__track {
+  animation-play-state: paused;
+}
+
+.logoloop__list {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--logoloop-gap);
+  margin: 0;
+  padding: 0 var(--logoloop-gap) 0 0;
+  list-style: none;
+}
+
+.logoloop__item {
+  flex: 0 0 auto;
+  font-size: var(--logoloop-logoHeight);
+  line-height: 1;
+}
+
+.logoloop__node {
+  display: inline-flex;
+  align-items: center;
+}
+
+.logoloop__item img {
+  height: var(--logoloop-logoHeight);
+  width: auto;
+  display: block;
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.logoloop--scale-hover .logoloop__item img,
+.logoloop--scale-hover .logoloop__node {
+  transition: transform 0.22s ease;
+}
+
+.logoloop--scale-hover .logoloop__item:hover img,
+.logoloop--scale-hover .logoloop__item:hover .logoloop__node {
+  transform: scale(1.12);
+  transform-origin: center center;
+}
+
+.logoloop__link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.logoloop__link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+@keyframes logoloop-scroll {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-33.333%, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logoloop__track {
+    animation: none;
+  }
+}
