@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.dev.log
+.dev.err.log
+dist/
+build/
+coverage/
+.vite/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
