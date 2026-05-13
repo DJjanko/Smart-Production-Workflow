@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, ClipboardList, Hammer, Pencil, Play, Plus, Save, Search, Trash2, UserRoundCheck, X } from "lucide-react";
+import { AlertTriangle, Hammer, Pencil, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { InlineDateTimeMenu, InlineStatusMenu } from "../components/InlineControls.jsx";
+import { OrderItemsEditor, normalizeOrderItems } from "../components/OrderItemsEditor.jsx";
 import { StatusBadge } from "../components/StatusBadge.jsx";
+import { WorkOrderDetailModal } from "../components/WorkOrderDetailModal.jsx";
+import { WorkOrdersTimeline } from "../components/WorkOrdersTimeline.jsx";
 import { formatDate } from "../utils/date.js";
+import { label } from "../utils/i18n.js";
 
 const emptyManual = { customerName: "", requestedDeadline: "", items: [] };
 const emptyItem = { productId: "", quantity: 1 };
@@ -11,154 +16,13 @@ const emptyItem = { productId: "", quantity: 1 };
 function workOrderToForm(order) {
   return {
     id: order._id,
+    customerName: order.orderId?.customerName || "",
+    items: normalizeOrderItems(order.items),
     status: order.status,
     startDate: order.startDate,
-    dueDate: "",
+    dueDate: order.dueDate || "",
     inventoryStatus: order.inventoryStatus
   };
-}
-
-function phaseToForm(phase) {
-  return {
-    id: phase._id,
-    name: phase.name,
-    requiredSkill: phase.requiredSkill,
-    assignedTo: phase.assignedTo?._id || phase.assignedTo || "",
-    assignedToName: phase.assignedToName,
-    start: phase.start,
-    end: phase.end,
-    dependsOn: phase.dependsOn,
-    status: phase.status
-  };
-}
-
-function WorkOrderDetailModal({
-  order,
-  phases,
-  employees,
-  session,
-  isAdmin,
-  editingPhase,
-  setEditingPhase,
-  savePhaseEdit,
-  loading,
-  onClose
-}) {
-  if (!order) return null;
-
-  const orderPhases = phases.filter((phase) => String(phase.workOrderId?._id || phase.workOrderId) === String(order._id));
-  const customerName = order.orderId?.customerName || "Ni vneseno";
-  const description = order.items?.map((item) => `${item.quantity} x ${item.productName}`).join(", ") || "Brez izdelkov";
-
-  return (
-    <div className="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="workOrderDetailTitle" onClick={onClose}>
-      <div className="productModal workOrderModal" onClick={(event) => event.stopPropagation()}>
-        <div className="modalHeader">
-          <div>
-            <h2 id="workOrderDetailTitle">{order.code}</h2>
-            <span>{customerName} / {order.status}</span>
-          </div>
-          <button type="button" className="iconButton" onClick={onClose} aria-label="Zapri podrobnosti naloga">
-            <X size={18} />
-          </button>
-        </div>
-
-        <section className="workOrderDetailGrid">
-          <div className="detailCard">
-            <ClipboardList size={18} />
-            <strong>Opis</strong>
-            <span>{description}</span>
-          </div>
-          <div className="detailCard">
-            <CalendarDays size={18} />
-            <strong>Datum</strong>
-            <span>Zacetek: {formatDate(order.startDate)} / rok: {formatDate(order.dueDate)}</span>
-          </div>
-          <div className="detailCard">
-            <UserRoundCheck size={18} />
-            <strong>Podjetje</strong>
-            <span>{customerName}</span>
-          </div>
-          <div className="detailCard">
-            <Hammer size={18} />
-            <strong>Naroceno</strong>
-            <span>{description}</span>
-          </div>
-        </section>
-
-        <section className="detailSection">
-          <div className="sectionHeader compact">
-            <h3>Faze naloga</h3>
-            <span>{orderPhases.length}</span>
-          </div>
-          <div className="phaseDetailList">
-            {orderPhases.map((phase) => {
-              const isEditing = editingPhase?.id === phase._id;
-              const qualified = employees.filter((employee) => employee.skills?.includes(phase.requiredSkill));
-              const others = employees.filter((employee) => !employee.skills?.includes(phase.requiredSkill));
-              const orderedEmployees = [...qualified, ...others];
-
-              return (
-                <article className={`phaseDetailCard ${isEditing ? "phaseDetailEditing" : ""}`} key={phase._id}>
-                  <div className="phaseDetailHeader">
-                    <div>
-                      <strong>{phase.name}</strong>
-                      <span>{phase.requiredSkill} / {formatDate(phase.start)} - {formatDate(phase.end)}</span>
-                    </div>
-                    <StatusBadge value={phase.status} />
-                  </div>
-                  {isEditing ? (
-                    <>
-                      <div className="phaseFormGrid">
-                        <label>
-                          Status
-                          <select value={editingPhase.status} onChange={(event) => setEditingPhase({ ...editingPhase, status: event.target.value })}>
-                            <option value="planned">planned</option>
-                            <option value="in_progress">in_progress</option>
-                            <option value="completed">completed</option>
-                          </select>
-                        </label>
-                      </div>
-                      {isAdmin && <div className="assigneeGrid">
-                        {orderedEmployees.map((employee) => {
-                          const hasSkill = employee.skills?.includes(phase.requiredSkill);
-                          const isSelected = String(editingPhase.assignedTo || "") === String(employee._id);
-
-                          return (
-                            <button
-                              type="button"
-                              className={`assigneeOption ${hasSkill ? "skillMatch" : "skillWeak"} ${isSelected ? "selected" : ""}`}
-                              key={employee._id}
-                              onClick={() => setEditingPhase({ ...editingPhase, assignedTo: employee._id, assignedToName: employee.name })}
-                            >
-                              <strong>{employee.name}</strong>
-                              <span>{employee.skills?.join(", ") || "brez znanj"}</span>
-                            </button>
-                          );
-                        })}
-                      </div>}
-                      <div className="rowActions inlinePhaseActions">
-                        <button type="button" className="primary" onClick={savePhaseEdit} disabled={loading}><Save size={17} />Shrani fazo</button>
-                        <button type="button" className="iconText" onClick={() => setEditingPhase(null)}><X size={17} />Preklic</button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p>Dodeljeno: {phase.assignedToName || "nedodeljeno"}</p>
-                      {(isAdmin || phase.assignedToName === session.user?.name) && <div className="rowActions inlinePhaseActions">
-                        <button type="button" className="iconText" onClick={() => setEditingPhase(phaseToForm(phase))}>Uredi fazo</button>
-                      </div>}
-                    </>
-                  )}
-                </article>
-              );
-            })}
-            {orderPhases.length === 0 && <EmptyState label="Ta nalog nima faz" />}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
 }
 
 export function WorkOrdersPage({ session }) {
@@ -169,8 +33,11 @@ export function WorkOrdersPage({ session }) {
   const [employees, setEmployees] = useState([]);
   const [manual, setManual] = useState(emptyManual);
   const [itemForm, setItemForm] = useState(emptyItem);
+  const [showCreateManual, setShowCreateManual] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [editingWorkOrder, setEditingWorkOrder] = useState(null);
+  const [editingWorkOrderItemForm, setEditingWorkOrderItemForm] = useState(emptyItem);
+  const [editingWorkOrderItem, setEditingWorkOrderItem] = useState(null);
   const [editingPhase, setEditingPhase] = useState(null);
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState(null);
   const [workOrderSearch, setWorkOrderSearch] = useState("");
@@ -190,6 +57,7 @@ export function WorkOrdersPage({ session }) {
     setEmployees(employeeData);
     if (!itemForm.productId && productData[0]?._id) {
       setItemForm((current) => ({ ...current, productId: productData[0]._id }));
+      setEditingWorkOrderItemForm((current) => ({ ...current, productId: productData[0]._id }));
     }
   }
 
@@ -256,7 +124,7 @@ export function WorkOrdersPage({ session }) {
     setLoading(true);
     try {
       if (manual.items.length === 0) {
-        throw new Error("Dodaj vsaj en izdelek v delovni nalog.");
+        throw new Error(label("addProduct"));
       }
 
       await api.createWorkOrder(
@@ -270,6 +138,7 @@ export function WorkOrdersPage({ session }) {
       setManual(emptyManual);
       setItemForm({ productId: products[0]?._id || "", quantity: 1 });
       setEditingItem(null);
+      setShowCreateManual(false);
       await loadPageData();
     } catch (err) {
       setError(err.message);
@@ -289,11 +158,37 @@ export function WorkOrdersPage({ session }) {
           status: editingWorkOrder.status,
           startDate: editingWorkOrder.startDate,
           dueDate: editingWorkOrder.dueDate || undefined,
-          inventoryStatus: editingWorkOrder.inventoryStatus
+          inventoryStatus: editingWorkOrder.inventoryStatus,
+          customerName: editingWorkOrder.customerName,
+          items: editingWorkOrder.items
         },
         session.token
       );
       setEditingWorkOrder(null);
+      setEditingWorkOrderItem(null);
+      await loadPageData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveWorkOrderField(order, patch) {
+    setError("");
+    setLoading(true);
+
+    try {
+      await api.updateWorkOrder(
+        order._id,
+        {
+          status: patch.status ?? order.status,
+          startDate: order.startDate,
+          dueDate: patch.dueDate ?? order.dueDate ?? undefined,
+          inventoryStatus: patch.inventoryStatus ?? order.inventoryStatus
+        },
+        session.token
+      );
       await loadPageData();
     } catch (err) {
       setError(err.message);
@@ -334,43 +229,51 @@ export function WorkOrdersPage({ session }) {
     <main className="main">
       <header className="topbar">
         <div>
-          <h1>Delovni nalogi</h1>
-          <p>Rocni zagon proizvodnega toka in status faz.</p>
+          <h1>{label("workOrders")}</h1>
+          <p>{label("workOrdersSubtitle")}</p>
         </div>
       </header>
 
       {error && <div className="alert"><AlertTriangle size={18} />{error}</div>}
 
-      <section className={isAdmin ? "crudGrid" : "surface pageSection noTopMargin"}>
-        {isAdmin && (
-        <form className="surface formPanel" onSubmit={createManual}>
+      <section className="surface pageSection noTopMargin">
+        <div className="sectionHeader">
+          <h2>{label("workOrdersList")}</h2>
+          <div className="sectionActions">
+            <span>{filteredWorkOrders.length} / {workOrders.length}</span>
+            {isAdmin && <button type="button" className="primary" onClick={() => setShowCreateManual(true)}><Plus size={17} />{label("add")}</button>}
+          </div>
+        </div>
+
+        {isAdmin && showCreateManual && (
+        <form className="inlineCreatePanel" onSubmit={createManual}>
           <div className="sectionHeader">
-            <h2>Nov delovni nalog</h2>
+            <h2>{label("formNewWorkOrder")}</h2>
             <Hammer size={18} />
           </div>
-          <label>Kupec<input value={manual.customerName} onChange={(event) => setManual({ ...manual, customerName: event.target.value })} /></label>
+          <label>{label("customer")}<input value={manual.customerName} onChange={(event) => setManual({ ...manual, customerName: event.target.value })} /></label>
           <div className="formRow">
-            <label>Rok<input type="datetime-local" value={manual.requestedDeadline} onChange={(event) => setManual({ ...manual, requestedDeadline: event.target.value })} /></label>
+            <label>{label("deadline")}<input type="datetime-local" value={manual.requestedDeadline} onChange={(event) => setManual({ ...manual, requestedDeadline: event.target.value })} /></label>
           </div>
           <div className="phaseBuilder">
             <div className="sectionHeader compact">
-              <h2>Izdelki v nalogu</h2>
+              <h2>{label("orderItems")}</h2>
               <span>{manual.items.length}</span>
             </div>
             <div className="phaseFormGrid">
               <label>
-                Izdelek
+                {label("product")}
                 <select value={itemForm.productId} onChange={(event) => setItemForm({ ...itemForm, productId: event.target.value })}>
-                  <option value="">Izberi izdelek</option>
+                  <option value="">{label("selectProduct")}</option>
                   {products.map((product) => <option key={product._id} value={product._id}>{product.name}</option>)}
                 </select>
               </label>
-              <label>Kolicina<input type="number" min="1" value={itemForm.quantity} onChange={(event) => setItemForm({ ...itemForm, quantity: event.target.value })} /></label>
+              <label>{label("quantity")}<input type="number" min="1" value={itemForm.quantity} onChange={(event) => setItemForm({ ...itemForm, quantity: event.target.value })} /></label>
             </div>
             <div className="formActions">
               <button type="button" className="iconText" onClick={addManualItem}>
                 <Plus size={17} />
-                Dodaj izdelek
+                {label("addProduct")}
               </button>
             </div>
             <div className="phaseObjectList">
@@ -384,17 +287,17 @@ export function WorkOrdersPage({ session }) {
                       <>
                         <div className="phaseFormGrid inlinePhaseForm">
                           <label>
-                            Izdelek
+                            {label("product")}
                             <select value={editingItem.productId} onChange={(event) => setEditingItem({ ...editingItem, productId: event.target.value })} autoFocus>
-                              <option value="">Izberi izdelek</option>
+                              <option value="">{label("selectProduct")}</option>
                               {products.map((candidate) => <option key={candidate._id} value={candidate._id}>{candidate.name}</option>)}
                             </select>
                           </label>
-                          <label>Kolicina<input type="number" min="1" value={editingItem.quantity} onChange={(event) => setEditingItem({ ...editingItem, quantity: event.target.value })} /></label>
+                          <label>{label("quantity")}<input type="number" min="1" value={editingItem.quantity} onChange={(event) => setEditingItem({ ...editingItem, quantity: event.target.value })} /></label>
                         </div>
                         <div className="rowActions inlinePhaseActions">
-                          <button type="button" className="primary" onClick={saveManualItemEdit}><Save size={17} />Shrani</button>
-                          <button type="button" className="iconText" onClick={() => setEditingItem(null)}><X size={17} />Preklic</button>
+                          <button type="button" className="primary" onClick={saveManualItemEdit}><Save size={17} />{label("save")}</button>
+                          <button type="button" className="iconText" onClick={() => setEditingItem(null)}><X size={17} />{label("cancel")}</button>
                         </div>
                       </>
                     ) : (
@@ -421,20 +324,22 @@ export function WorkOrdersPage({ session }) {
                   </div>
                 );
               })}
-              {manual.items.length === 0 && <EmptyState label="Dodaj prvi izdelek v nalog" />}
+              {manual.items.length === 0 && <EmptyState label={label("addProduct")} />}
             </div>
           </div>
           <div className="formActions formActionsRight">
-            <button className="primary" disabled={loading}><Play size={17} />Ustvari nalog</button>
+            <button type="button" className="iconText" onClick={() => { setShowCreateManual(false); setManual(emptyManual); setEditingItem(null); }}>
+              <X size={17} />
+              {label("cancel")}
+            </button>
+            <button className="primary" disabled={loading}><Play size={17} />{label("createWorkOrder")}</button>
           </div>
         </form>
         )}
 
-        <div className={isAdmin ? "surface" : ""}>
-          <div className="sectionHeader"><h2>Nalogi</h2><span>{filteredWorkOrders.length} / {workOrders.length}</span></div>
           <label className="searchField">
             <Search size={17} />
-            <input value={workOrderSearch} onChange={(event) => setWorkOrderSearch(event.target.value)} placeholder="Isci delovne naloge" />
+            <input value={workOrderSearch} onChange={(event) => setWorkOrderSearch(event.target.value)} placeholder={label("searchWorkOrders")} />
           </label>
           <div className="entityList">
             {filteredWorkOrders.map((order) => {
@@ -457,28 +362,22 @@ export function WorkOrdersPage({ session }) {
                   {isAdmin && isEditing ? (
                     <>
                       <div className="inlineProductForm">
-                        <label>
-                          Status
-                          <select value={editingWorkOrder.status} onChange={(event) => setEditingWorkOrder({ ...editingWorkOrder, status: event.target.value })}>
-                            <option value="planned">planned</option>
-                            <option value="in_progress">in_progress</option>
-                            <option value="completed">completed</option>
-                            <option value="delayed">delayed</option>
-                          </select>
-                        </label>
-                        <label>
-                          Zaloga
-                          <select value={editingWorkOrder.inventoryStatus} onChange={(event) => setEditingWorkOrder({ ...editingWorkOrder, inventoryStatus: event.target.value })}>
-                            <option value="available">available</option>
-                            <option value="replenished">replenished</option>
-                            <option value="missing">missing</option>
-                          </select>
-                        </label>
-                        <label>Nov rok<input type="datetime-local" value={editingWorkOrder.dueDate} onChange={(event) => setEditingWorkOrder({ ...editingWorkOrder, dueDate: event.target.value })} /></label>
+                        <label>{label("customer")}<input value={editingWorkOrder.customerName} onChange={(event) => setEditingWorkOrder({ ...editingWorkOrder, customerName: event.target.value })} autoFocus /></label>
+                        <OrderItemsEditor
+                          title={label("orderItems")}
+                          products={products}
+                          items={editingWorkOrder.items}
+                          setItems={(items) => setEditingWorkOrder((current) => ({ ...current, items }))}
+                          itemForm={editingWorkOrderItemForm}
+                          setItemForm={setEditingWorkOrderItemForm}
+                          editingItem={editingWorkOrderItem}
+                          setEditingItem={setEditingWorkOrderItem}
+                          setError={setError}
+                        />
                       </div>
                       <div className="rowActions inlineProductActions">
-                        <button type="button" className="primary" onClick={saveWorkOrderEdit} disabled={loading}><Save size={17} />Shrani</button>
-                        <button type="button" className="iconText" onClick={() => setEditingWorkOrder(null)}><X size={17} />Preklic</button>
+                        <button type="button" className="primary" onClick={saveWorkOrderEdit} disabled={loading}><Save size={17} />{label("save")}</button>
+                        <button type="button" className="iconText" onClick={() => { setEditingWorkOrder(null); setEditingWorkOrderItem(null); }}><X size={17} />{label("cancel")}</button>
                       </div>
                     </>
                   ) : (
@@ -486,11 +385,28 @@ export function WorkOrdersPage({ session }) {
                       <div>
                         <strong>{order.code}</strong>
                         <span>{order.items?.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}</span>
-                        <p>Rok: {formatDate(order.dueDate)} / zaloga: {order.inventoryStatus}</p>
+                        <p>{label("deadline")}: {formatDate(order.dueDate)} / {label("inventory")}: {order.inventoryStatus}</p>
                       </div>
-                      <StatusBadge value={order.status} />
-                      {isAdmin && <div className="rowActions">
-                        <button className="iconText" onClick={(event) => { event.stopPropagation(); setEditingWorkOrder(workOrderToForm(order)); }}>Uredi</button>
+                      {!isAdmin && <StatusBadge value={order.status} />}
+                      {isAdmin && <div className="inlineListControls" onClick={(event) => event.stopPropagation()}>
+                        <InlineStatusMenu
+                          label={label("status")}
+                          value={order.status}
+                          options={["planned", "in_progress", "completed", "delayed"]}
+                          onChange={(status) => saveWorkOrderField(order, { status })}
+                          disabled={loading}
+                        />
+                        <InlineStatusMenu
+                          label={label("inventory")}
+                          value={order.inventoryStatus}
+                          options={["available", "replenished", "missing"]}
+                          onChange={(inventoryStatus) => saveWorkOrderField(order, { inventoryStatus })}
+                          disabled={loading}
+                        />
+                        <InlineDateTimeMenu label={label("deadline")} value={order.dueDate} onChange={(dueDate) => saveWorkOrderField(order, { dueDate })} disabled={loading} />
+                      </div>}
+                      {isAdmin && <div className="rowActions workOrderRowActions">
+                        <button className="iconButton workOrderEditButton" onClick={(event) => { event.stopPropagation(); setEditingWorkOrder(workOrderToForm(order)); }} aria-label="Uredi delovni nalog"><Pencil size={17} /></button>
                         <button className="dangerButton" onClick={(event) => { event.stopPropagation(); deleteWorkOrder(order._id); }}><Trash2 size={17} /></button>
                       </div>}
                     </>
@@ -498,10 +414,14 @@ export function WorkOrdersPage({ session }) {
                 </div>
               );
             })}
-            {filteredWorkOrders.length === 0 && <EmptyState label="Ni zadetkov" />}
+            {filteredWorkOrders.length === 0 && <EmptyState label={label("noResults")} />}
           </div>
-        </div>
       </section>
+
+      <WorkOrdersTimeline
+        workOrders={workOrders}
+        onWorkOrderClick={(order) => setSelectedWorkOrderId(order._id)}
+      />
 
       <WorkOrderDetailModal
         order={selectedWorkOrder}

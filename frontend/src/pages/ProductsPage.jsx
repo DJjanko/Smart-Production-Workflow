@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardList, Image, Pencil, Plus, PackagePlus, Save, Search, Trash2, Wrench, X } from "lucide-react";
 import { api } from "../api.js";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { label } from "../utils/i18n.js";
 
 const emptyForm = {
   id: null,
@@ -94,8 +95,8 @@ function ProductDetailModal({ product, onClose }) {
             <span>Slika izdelka</span>
           </div>
           <div className="productDetailIntro">
-            <h3>Opis izdelka</h3>
-            <p>{product.description || "Opis izdelka se ni vnesen."}</p>
+            <h3>{label("description")}</h3>
+            <p>{product.description || label("noData")}</p>
             <div className="drawingBox">
               <ClipboardList size={20} />
               <div>
@@ -215,26 +216,26 @@ function RequiredPartsEditor({
   return (
     <div className="phaseBuilder">
       <div className="sectionHeader compact">
-        <h2>Deli na izdelek</h2>
+        <h2>{label("parts")}</h2>
         <span>{requiredParts.length}</span>
       </div>
       <div className="phaseFormGrid">
         <label>
-          Del
+          {label("parts")}
           <select value={requiredPartForm.partId} onChange={(event) => setRequiredPartForm({ ...requiredPartForm, partId: event.target.value })}>
-            <option value="">Izberi del</option>
+            <option value="">{label("selectPart")}</option>
             {parts.map((part) => <option key={part._id} value={part._id}>{part.name} ({part.sku})</option>)}
           </select>
         </label>
         <label>
-          Kolicina
+          {label("quantity")}
           <input type="number" min="1" value={requiredPartForm.quantity} onChange={(event) => setRequiredPartForm({ ...requiredPartForm, quantity: event.target.value })} />
         </label>
       </div>
       <div className="formActions">
         <button type="button" className="iconText" onClick={saveRequiredPart}>
           <Plus size={17} />
-          Dodaj del
+          {label("addPart")}
         </button>
       </div>
       <div className="phaseObjectList">
@@ -248,25 +249,25 @@ function RequiredPartsEditor({
                 <>
                   <div className="phaseFormGrid inlinePhaseForm">
                     <label>
-                      Del
+                      {label("parts")}
                       <select value={editingRequiredPart.partId} onChange={(event) => setEditingRequiredPart({ ...editingRequiredPart, partId: event.target.value })} autoFocus>
-                        <option value="">Izberi del</option>
+                        <option value="">{label("selectPart")}</option>
                         {parts.map((candidate) => <option key={candidate._id} value={candidate._id}>{candidate.name} ({candidate.sku})</option>)}
                       </select>
                     </label>
                     <label>
-                      Kolicina
+                      {label("quantity")}
                       <input type="number" min="1" value={editingRequiredPart.quantity} onChange={(event) => setEditingRequiredPart({ ...editingRequiredPart, quantity: event.target.value })} />
                     </label>
                   </div>
                   <div className="rowActions inlinePhaseActions">
                     <button type="button" className="primary" onClick={saveEditedRequiredPart}>
                       <Save size={17} />
-                      Shrani
+                      {label("save")}
                     </button>
                     <button type="button" className="iconText" onClick={() => setEditingRequiredPart(null)}>
                       <X size={17} />
-                      Preklic
+                      {label("cancel")}
                     </button>
                   </div>
                 </>
@@ -298,7 +299,7 @@ function RequiredPartsEditor({
             </div>
           );
         })}
-        {requiredParts.length === 0 && <EmptyState label="Dodaj prvi del izdelka" />}
+        {requiredParts.length === 0 && <EmptyState label={label("addPart")} />}
       </div>
     </div>
   );
@@ -351,24 +352,24 @@ function PhaseEditor({
   return (
     <div className="phaseBuilder">
       <div className="sectionHeader compact">
-        <h2>Faze</h2>
+        <h2>{label("timelinePhases")}</h2>
         <span>{phases.length}</span>
       </div>
       <div className="phaseFormGrid">
         <label>
-          Ime faze
+          {label("name")}
           <input value={phaseForm.name} onChange={(event) => setPhaseForm({ ...phaseForm, name: event.target.value })} />
         </label>
         <label>
-          Znanje
+          {label("skill")}
           <input value={phaseForm.requiredSkill} onChange={(event) => setPhaseForm({ ...phaseForm, requiredSkill: event.target.value })} />
         </label>
         <label>
-          Trajanje min
+          {label("durationMin")}
           <input type="number" min="1" value={phaseForm.durationMinutes} onChange={(event) => setPhaseForm({ ...phaseForm, durationMinutes: event.target.value })} />
         </label>
         <label>
-          Odvisno od
+          {label("dependency")}
           <select value={phaseForm.dependsOn} onChange={(event) => setPhaseForm({ ...phaseForm, dependsOn: event.target.value })}>
             <option value="">Brez odvisnosti</option>
             {phases.map((phase, index) => <option key={`${phase.name}-${index}`} value={phase.name}>{phase.name}</option>)}
@@ -378,7 +379,7 @@ function PhaseEditor({
       <div className="formActions">
         <button type="button" className="iconText" onClick={savePhase}>
           <Plus size={17} />
-          Dodaj fazo
+          {label("addPhase")}
         </button>
       </div>
       <div className="phaseObjectList">
@@ -391,19 +392,19 @@ function PhaseEditor({
                 <>
                   <div className="phaseFormGrid inlinePhaseForm">
                     <label>
-                      Ime faze
+                      {label("name")}
                       <input value={editingPhase.name} onChange={(event) => setEditingPhase({ ...editingPhase, name: event.target.value })} autoFocus />
                     </label>
                     <label>
-                      Znanje
+                      {label("skill")}
                       <input value={editingPhase.requiredSkill} onChange={(event) => setEditingPhase({ ...editingPhase, requiredSkill: event.target.value })} />
                     </label>
                     <label>
-                      Trajanje min
+                      {label("durationMin")}
                       <input type="number" min="1" value={editingPhase.durationMinutes} onChange={(event) => setEditingPhase({ ...editingPhase, durationMinutes: event.target.value })} />
                     </label>
                     <label>
-                      Odvisno od
+                      {label("dependency")}
                       <select value={editingPhase.dependsOn} onChange={(event) => setEditingPhase({ ...editingPhase, dependsOn: event.target.value })}>
                         <option value="">Brez odvisnosti</option>
                         {phases
@@ -415,11 +416,11 @@ function PhaseEditor({
                   <div className="rowActions inlinePhaseActions">
                     <button type="button" className="primary" onClick={saveEditedPhase}>
                       <Save size={17} />
-                      Shrani
+                      {label("save")}
                     </button>
                     <button type="button" className="iconText" onClick={() => setEditingPhase(null)}>
                       <X size={17} />
-                      Preklic
+                      {label("cancel")}
                     </button>
                   </div>
                 </>
@@ -454,7 +455,7 @@ function PhaseEditor({
             </div>
           );
         })}
-        {phases.length === 0 && <EmptyState label="Dodaj prvo fazo izdelave" />}
+        {phases.length === 0 && <EmptyState label={label("noPhases")} />}
       </div>
     </div>
   );
@@ -588,8 +589,8 @@ export function ProductsPage({ session }) {
     <main className="main">
       <header className="topbar">
         <div>
-          <h1>Izdelki</h1>
-          <p>Produktni katalog, sestavni deli in faze izdelave.</p>
+          <h1>{label("products")}</h1>
+          <p>{label("productsSubtitle")}</p>
         </div>
       </header>
 
@@ -599,15 +600,15 @@ export function ProductsPage({ session }) {
         {isAdmin && (
         <form className="surface formPanel" onSubmit={handleSubmit}>
           <div className="sectionHeader">
-            <h2>Nov izdelek</h2>
+            <h2>{label("formNewProduct")}</h2>
             <PackagePlus size={18} />
           </div>
           <label>
-            Naziv
+            {label("name")}
             <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
           </label>
           <label>
-            Opis
+            {label("description")}
             <textarea rows={3} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
           </label>
 
@@ -633,22 +634,22 @@ export function ProductsPage({ session }) {
           />
 
           <div className="formActions formActionsRight">
-            <button className="primary" disabled={loading}><Plus size={17} />Dodaj</button>
+            <button className="primary" disabled={loading}><Plus size={17} />{label("add")}</button>
           </div>
         </form>
         )}
 
         <div className={isAdmin ? "surface" : ""}>
           <div className="sectionHeader">
-            <h2>Katalog</h2>
-            <span>{filteredProducts.length} / {products.length} izdelkov</span>
+            <h2>{label("catalog")}</h2>
+            <span>{filteredProducts.length} / {products.length} {label("countProducts")}</span>
           </div>
           <label className="searchField">
             <Search size={17} />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Isci izdelke"
+              placeholder={label("searchProducts")}
             />
           </label>
           <div className="entityList">
@@ -673,11 +674,11 @@ export function ProductsPage({ session }) {
                     <>
                       <div className="inlineProductForm">
                         <label>
-                          Naziv
+                          {label("name")}
                           <input value={editingProduct.name} onChange={(event) => setEditingProduct({ ...editingProduct, name: event.target.value })} autoFocus />
                         </label>
                         <label>
-                          Opis
+                          {label("description")}
                           <textarea rows={2} value={editingProduct.description} onChange={(event) => setEditingProduct({ ...editingProduct, description: event.target.value })} />
                         </label>
                         <RequiredPartsEditor
@@ -703,11 +704,11 @@ export function ProductsPage({ session }) {
                       <div className="rowActions inlineProductActions">
                         <button type="button" className="primary" onClick={saveProductEdit} disabled={loading}>
                           <Save size={17} />
-                          Shrani
+                          {label("save")}
                         </button>
                         <button type="button" className="iconText" onClick={() => setEditingProduct(null)}>
                           <X size={17} />
-                          Preklic
+                          {label("cancel")}
                         </button>
                       </div>
                     </>
@@ -719,7 +720,7 @@ export function ProductsPage({ session }) {
                         <p>{product.description}</p>
                       </div>
                       {isAdmin && <div className="rowActions">
-                        <button className="iconText" onClick={(event) => { event.stopPropagation(); startProductEdit(product); }}>Uredi</button>
+                        <button className="iconButton" onClick={(event) => { event.stopPropagation(); startProductEdit(product); }} aria-label="Uredi izdelek"><Pencil size={17} /></button>
                         <button className="dangerButton" onClick={(event) => { event.stopPropagation(); handleDelete(product._id); }} disabled={loading} aria-label="Izbrisi izdelek">
                           <Trash2 size={17} />
                         </button>
@@ -729,7 +730,7 @@ export function ProductsPage({ session }) {
                 </div>
               );
             })}
-            {filteredProducts.length === 0 && <EmptyState label="Ni zadetkov" />}
+            {filteredProducts.length === 0 && <EmptyState label={label("noResults")} />}
           </div>
         </div>
       </section>

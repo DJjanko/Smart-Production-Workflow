@@ -1,5 +1,6 @@
 import { Bot, CalendarClock, CheckCircle2, ChevronRight, Play } from "lucide-react";
 import { EmptyState } from "./EmptyState.jsx";
+import { label } from "../utils/i18n.js";
 
 export function CopilotPanel({
   activities,
@@ -36,13 +37,13 @@ export function CopilotPanel({
         <textarea value={command} onChange={(event) => setCommand(event.target.value)} rows={7} />
         <button className="primary runButton" disabled={loading}>
           <Play size={17} />
-          Izvedi
+          {label("run")}
         </button>
       </form>
 
       <div className="resultPanel">
         <div className="sectionHeader compact">
-          <h2>Rezultat</h2>
+          <h2>{label("result")}</h2>
           {result?.interpreted?.intent && <span>{result.interpreted.intent}</span>}
         </div>
         {loading ? (
@@ -59,20 +60,20 @@ export function CopilotPanel({
                 <CheckCircle2 size={18} />
                 <div>
                   <strong>{result.result.workOrder.code}</strong>
-                  <span>{result.result.phases.length} faz - {result.result.workOrder.inventoryStatus}</span>
+                  <span>{result.result.phases.length} {label("phasesShort")} - {result.result.workOrder.inventoryStatus}</span>
                 </div>
               </div>
             )}
             <pre>{JSON.stringify(result.interpreted, null, 2)}</pre>
           </div>
         ) : (
-          <EmptyState label="Cakam na ukaz" />
+          <EmptyState label={label("waitingForCommand")} />
         )}
       </div>
 
       <div className="activityPanel">
         <div className="sectionHeader compact">
-          <h2>Activity Log</h2>
+          <h2>{label("activityLog")}</h2>
           <CalendarClock size={16} />
         </div>
         {activities.map((activity) => (
