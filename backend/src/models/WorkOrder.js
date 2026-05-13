@@ -8,7 +8,9 @@ const workOrderSchema = new mongoose.Schema(
       {
         productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
         productName: String,
-        quantity: Number
+        quantity: Number,
+        fromStock: { type: Number, default: 0 },
+        toProduce: { type: Number, default: 0 }
       }
     ],
     status: { type: String, enum: ["planned", "in_progress", "completed", "delayed"], default: "planned" },

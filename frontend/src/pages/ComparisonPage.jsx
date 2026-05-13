@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Gauge, Search } from "lucide-react";
 import { api } from "../api.js";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { label } from "../utils/i18n.js";
 
 export function ComparisonPage() {
   const [activities, setActivities] = useState([]);
@@ -49,8 +50,8 @@ export function ComparisonPage() {
     <main className="main">
       <header className="topbar">
         <div>
-          <h1>Primerjava</h1>
-          <p>Meritve izvajanja za mock, OpenAI in Ollama poti.</p>
+          <h1>{label("comparison")}</h1>
+          <p>{label("comparisonSubtitle")}</p>
         </div>
       </header>
 
@@ -67,19 +68,19 @@ export function ComparisonPage() {
       </section>
 
       <section className="surface pageSection">
-        <div className="sectionHeader"><h2>Activity log</h2><span>{filteredActivities.length} / {activities.length}</span></div>
+        <div className="sectionHeader"><h2>{label("activityLog")}</h2><span>{filteredActivities.length} / {activities.length}</span></div>
         <div className="comparisonFilters">
           <label>
-            Iskanje
+            {label("searchMeasurements")}
             <span className="searchInputWrap">
               <Search size={17} />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Isci meritve" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={label("searchMeasurements")} />
             </span>
           </label>
           <label>
-            Provider
+            {label("provider")}
             <select value={provider} onChange={(event) => setProvider(event.target.value)}>
-              <option value="all">Vsi</option>
+              <option value="all">{label("all")}</option>
               <option value="mock">mock</option>
               <option value="openai">openai</option>
               <option value="ollama">ollama</option>
@@ -96,7 +97,7 @@ export function ComparisonPage() {
               </div>
             </div>
           ))}
-          {filteredActivities.length === 0 && <EmptyState label="Ni zadetkov" />}
+          {filteredActivities.length === 0 && <EmptyState label={label("noResults")} />}
         </div>
       </section>
     </main>

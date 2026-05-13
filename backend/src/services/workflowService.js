@@ -4,6 +4,7 @@ import { Inventory } from "../models/Inventory.js";
 import { Order } from "../models/Order.js";
 import { PartOrder } from "../models/PartOrder.js";
 import { Product } from "../models/Product.js";
+import { ProductInventory } from "../models/ProductInventory.js";
 import { WorkOrder } from "../models/WorkOrder.js";
 import { WorkOrderPhase } from "../models/WorkOrderPhase.js";
 
@@ -27,16 +28,28 @@ function maxDate(...dates) {
 }
 
 export async function getDashboardData() {
-  const [workOrders, phases, employees, inventory, activities] = await Promise.all([
-    WorkOrder.find().sort({ createdAt: -1 }).limit(8).lean(),
+  const [workOrders, phases, employees, productInventory, products, activities] = await Promise.all([
+    WorkOrder.find().sort({ createdAt: -1 }).populate("orderId", "customerName requestedDeadline").lean(),
     WorkOrderPhase.find().sort({ start: 1 }).populate("workOrderId", "code").lean(),
     Employee.find().sort({ name: 1 }).lean(),
-    Inventory.find().populate("partId").sort({ updatedAt: -1 }).lean(),
+    ProductInventory.find().populate("productId").sort({ updatedAt: -1 }).lean(),
+    Product.find().sort({ name: 1 }).lean(),
     ActivityLog.find().sort({ createdAt: -1 }).limit(8).lean()
   ]);
 
   const activeWorkOrders = await WorkOrder.countDocuments({ status: { $in: ["planned", "in_progress"] } });
-  const lowStock = inventory.filter((item) => item.partId && item.availableQuantity <= item.partId.minStock);
+  const productInventoryById = new Map(productInventory.map((item) => [String(item.productId?._id || item.productId), item]));
+  const inventory = products.map((product) => {
+    const row = productInventoryById.get(String(product._id));
+    return row || {
+      _id: `missing-${product._id}`,
+      productId: product,
+      availableQuantity: 0,
+      reservedQuantity: 0,
+      location: "FINISHED"
+    };
+  });
+  const lowStock = inventory.filter((item) => item.productId && item.availableQuantity <= 0);
   const workload = employees.map((employee) => {
     const assigned = phases.filter((phase) => String(phase.assignedTo) === String(employee._id));
     const minutes = assigned.reduce((sum, phase) => {
@@ -107,6 +120,8 @@ async function autoOrderMissingParts(inventoryCheck) {
 }
 
 async function reserveInventory(product, quantity) {
+  if (quantity <= 0) return;
+
   await Promise.all(
     product.requiredParts.map((requiredPart) =>
       Inventory.updateOne(
@@ -120,6 +135,24 @@ async function reserveInventory(product, quantity) {
       )
     )
   );
+}
+
+async function reserveFinishedProducts(product, quantity) {
+  if (quantity <= 0) return 0;
+
+  const row = await ProductInventory.findOne({ productId: product._id });
+  const available = Math.max(0, row?.availableQuantity || 0);
+  const fromStock = Math.min(available, quantity);
+
+  if (fromStock > 0) {
+    await ProductInventory.updateOne(
+      { productId: product._id },
+      { $inc: { availableQuantity: -fromStock, reservedQuantity: fromStock }, $setOnInsert: { location: "FINISHED" } },
+      { upsert: true }
+    );
+  }
+
+  return fromStock;
 }
 
 async function nextWorkOrderCode() {
@@ -201,10 +234,12 @@ export async function processCustomerOrder({ customerName, productName, quantity
     throw new Error("Quantity must be a positive number.");
   }
 
-  const firstCheck = await checkInventoryForProduct(product, parsedQuantity);
+  const fromStock = await reserveFinishedProducts(product, parsedQuantity);
+  const toProduce = Math.max(0, parsedQuantity - fromStock);
+  const firstCheck = toProduce > 0 ? await checkInventoryForProduct(product, toProduce) : [];
   const partOrder = await autoOrderMissingParts(firstCheck);
   const inventoryStatus = partOrder ? "replenished" : "available";
-  await reserveInventory(product, parsedQuantity);
+  await reserveInventory(product, toProduce);
 
   const order = await Order.create({
     customerName: customerName || "Unknown customer",
@@ -216,8 +251,8 @@ export async function processCustomerOrder({ customerName, productName, quantity
   const workOrder = await WorkOrder.create({
     code: await nextWorkOrderCode(),
     orderId: order._id,
-    items: order.items,
-    status: "planned",
+    items: [{ productId: product._id, productName: product.name, quantity: parsedQuantity, fromStock, toProduce }],
+    status: toProduce > 0 ? "planned" : "completed",
     startDate,
     dueDate: requestedDeadline ? new Date(requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),
     inventoryStatus
@@ -228,13 +263,13 @@ export async function processCustomerOrder({ customerName, productName, quantity
     await partOrder.save();
   }
 
-  const phases = await generateAndAssignPhases({ workOrder, product, quantity: parsedQuantity, startDate });
+  const phases = toProduce > 0 ? await generateAndAssignPhases({ workOrder, product, quantity: toProduce, startDate }) : [];
   const output = {
     workOrder,
     phases,
     inventoryCheck: firstCheck,
     partOrder,
-    message: `${workOrder.code} created for ${parsedQuantity} x ${product.name}. Inventory was ${inventoryStatus}.`
+    message: `${workOrder.code} created for ${parsedQuantity} x ${product.name}. ${fromStock} from finished stock, ${toProduce} to produce. Inventory was ${inventoryStatus}.`
   };
 
   await ActivityLog.create({
@@ -247,6 +282,7 @@ export async function processCustomerOrder({ customerName, productName, quantity
       workOrderCode: workOrder.code,
       phaseCount: phases.length,
       inventoryStatus,
+      finishedStockUsed: fromStock,
       orderedParts: partOrder?.parts || []
     },
     durationMs: Date.now() - started
@@ -272,8 +308,11 @@ export async function processCustomerOrderItems({ customerName, items, requested
     .lean();
   const productById = new Map(products.map((product) => [String(product._id), product]));
   const orderItems = [];
+  const workOrderItems = [];
   const inventoryChecks = [];
   const partOrders = [];
+  let totalToProduce = 0;
+  let totalFromStock = 0;
 
   for (const item of cleanItems) {
     const product = productById.get(String(item.productId));
@@ -281,11 +320,16 @@ export async function processCustomerOrderItems({ customerName, items, requested
       throw new Error(`Product "${item.productId}" was not found.`);
     }
 
-    const inventoryCheck = await checkInventoryForProduct(product, item.quantity);
+    const fromStock = await reserveFinishedProducts(product, item.quantity);
+    const toProduce = Math.max(0, item.quantity - fromStock);
+    totalFromStock += fromStock;
+    totalToProduce += toProduce;
+    const inventoryCheck = toProduce > 0 ? await checkInventoryForProduct(product, toProduce) : [];
     const partOrder = await autoOrderMissingParts(inventoryCheck);
-    await reserveInventory(product, item.quantity);
+    await reserveInventory(product, toProduce);
 
     orderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity });
+    workOrderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity, fromStock, toProduce });
     inventoryChecks.push({ productId: product._id, productName: product.name, quantity: item.quantity, inventoryCheck });
     if (partOrder) partOrders.push(partOrder);
   }
@@ -301,8 +345,8 @@ export async function processCustomerOrderItems({ customerName, items, requested
   const workOrder = await WorkOrder.create({
     code: await nextWorkOrderCode(),
     orderId: order._id,
-    items: order.items,
-    status: "planned",
+    items: workOrderItems,
+    status: totalToProduce > 0 ? "planned" : "completed",
     startDate,
     dueDate: requestedDeadline ? new Date(requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),
     inventoryStatus
@@ -317,8 +361,10 @@ export async function processCustomerOrderItems({ customerName, items, requested
 
   const phases = [];
   for (const item of cleanItems) {
+    const workOrderItem = workOrderItems.find((candidate) => String(candidate.productId) === String(item.productId));
+    if (!workOrderItem || workOrderItem.toProduce <= 0) continue;
     const product = productById.get(String(item.productId));
-    phases.push(...await generateAndAssignPhases({ workOrder, product, quantity: item.quantity, startDate }));
+    phases.push(...await generateAndAssignPhases({ workOrder, product, quantity: workOrderItem.toProduce, startDate }));
   }
 
   const output = {
@@ -326,7 +372,7 @@ export async function processCustomerOrderItems({ customerName, items, requested
     phases,
     inventoryCheck: inventoryChecks,
     partOrders,
-    message: `${workOrder.code} created for ${orderItems.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}. Inventory was ${inventoryStatus}.`
+    message: `${workOrder.code} created for ${orderItems.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}. ${totalFromStock} from finished stock, ${totalToProduce} to produce. Inventory was ${inventoryStatus}.`
   };
 
   await ActivityLog.create({
@@ -340,6 +386,7 @@ export async function processCustomerOrderItems({ customerName, items, requested
       itemCount: orderItems.length,
       phaseCount: phases.length,
       inventoryStatus,
+      finishedStockUsed: totalFromStock,
       orderedParts: partOrders.flatMap((partOrder) => partOrder.parts || [])
     },
     durationMs: Date.now() - started

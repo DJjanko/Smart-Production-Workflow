@@ -4,6 +4,7 @@ import { Inventory } from "../models/Inventory.js";
 import { Order } from "../models/Order.js";
 import { Part } from "../models/Part.js";
 import { Product } from "../models/Product.js";
+import { ProductInventory } from "../models/ProductInventory.js";
 import { SupplyAlert } from "../models/SupplyAlert.js";
 import { User } from "../models/User.js";
 import { WorkOrder } from "../models/WorkOrder.js";
@@ -52,6 +53,24 @@ function cleanProductPayload(body) {
           }))
       : []
   };
+}
+
+async function cleanOrderItemsPayload(items = []) {
+  const cleanItems = Array.isArray(items)
+    ? items.filter((item) => item.productId && cleanNumber(item.quantity) > 0)
+    : [];
+  if (!cleanItems.length) return [];
+
+  const products = await Product.find({ _id: { $in: cleanItems.map((item) => item.productId) } });
+  const productById = new Map(products.map((product) => [String(product._id), product]));
+
+  return cleanItems.map((item) => ({
+    productId: item.productId,
+    productName: productById.get(String(item.productId))?.name || item.productName || "Product",
+    quantity: cleanNumber(item.quantity, 1),
+    fromStock: cleanNumber(item.fromStock),
+    toProduce: cleanNumber(item.toProduce, cleanNumber(item.quantity, 1))
+  }));
 }
 
 function sendRequired(res, field) {
@@ -104,6 +123,58 @@ export async function deleteProduct(req, res, next) {
   try {
     const deleted = await Product.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Product not found." });
+    await ProductInventory.deleteMany({ productId: req.params.id });
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getProductInventory(req, res, next) {
+  try {
+    res.json(await ProductInventory.find().populate("productId").sort({ updatedAt: -1 }));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createProductInventory(req, res, next) {
+  try {
+    if (!req.body.productId) return sendRequired(res, "productId");
+    const inventory = await ProductInventory.create({
+      productId: req.body.productId,
+      availableQuantity: cleanNumber(req.body.availableQuantity),
+      reservedQuantity: cleanNumber(req.body.reservedQuantity),
+      location: req.body.location?.trim() || "FINISHED"
+    });
+    res.status(201).json(await inventory.populate("productId"));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateProductInventory(req, res, next) {
+  try {
+    const inventory = await ProductInventory.findByIdAndUpdate(
+      req.params.id,
+      {
+        availableQuantity: cleanNumber(req.body.availableQuantity),
+        reservedQuantity: cleanNumber(req.body.reservedQuantity),
+        location: req.body.location?.trim() || "FINISHED"
+      },
+      { new: true, runValidators: true }
+    ).populate("productId");
+    if (!inventory) return res.status(404).json({ message: "Product inventory row not found." });
+    res.json(inventory);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteProductInventory(req, res, next) {
+  try {
+    const deleted = await ProductInventory.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Product inventory row not found." });
     res.json({ ok: true });
   } catch (error) {
     next(error);
@@ -275,19 +346,12 @@ export async function getOrders(req, res, next) {
 export async function createOrder(req, res, next) {
   try {
     if (!req.body.customerName?.trim()) return sendRequired(res, "customerName");
-    const items = Array.isArray(req.body.items) ? req.body.items : [];
-    const cleanItems = items.filter((item) => item.productId && cleanNumber(item.quantity) > 0);
+    const cleanItems = await cleanOrderItemsPayload(req.body.items);
     if (!cleanItems.length) return sendRequired(res, "items");
 
-    const products = await Product.find({ _id: { $in: cleanItems.map((item) => item.productId) } });
-    const productById = new Map(products.map((product) => [String(product._id), product]));
     const order = await Order.create({
       customerName: req.body.customerName,
-      items: cleanItems.map((item) => ({
-        productId: item.productId,
-        productName: productById.get(String(item.productId))?.name || item.productName || "Product",
-        quantity: cleanNumber(item.quantity, 1)
-      })),
+      items: cleanItems.map(({ productId, productName, quantity }) => ({ productId, productName, quantity })),
       requestedDeadline: req.body.requestedDeadline || undefined,
       status: req.body.status || "confirmed"
     });
@@ -300,13 +364,21 @@ export async function createOrder(req, res, next) {
 export async function updateOrder(req, res, next) {
   try {
     if (!req.body.customerName?.trim()) return sendRequired(res, "customerName");
+    const update = {
+      customerName: req.body.customerName,
+      requestedDeadline: req.body.requestedDeadline || undefined,
+      status: req.body.status || "confirmed"
+    };
+
+    if (Array.isArray(req.body.items)) {
+      const cleanItems = await cleanOrderItemsPayload(req.body.items);
+      if (!cleanItems.length) return sendRequired(res, "items");
+      update.items = cleanItems.map(({ productId, productName, quantity }) => ({ productId, productName, quantity }));
+    }
+
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      {
-        customerName: req.body.customerName,
-        requestedDeadline: req.body.requestedDeadline || undefined,
-        status: req.body.status || "confirmed"
-      },
+      update,
       { new: true, runValidators: true }
     );
     if (!order) return res.status(404).json({ message: "Order not found." });
@@ -382,17 +454,31 @@ export async function createManualWorkOrder(req, res, next) {
 
 export async function updateWorkOrder(req, res, next) {
   try {
+    const update = {
+      status: req.body.status,
+      startDate: req.body.startDate || undefined,
+      dueDate: req.body.dueDate || undefined,
+      inventoryStatus: req.body.inventoryStatus
+    };
+
+    if (Array.isArray(req.body.items)) {
+      const cleanItems = await cleanOrderItemsPayload(req.body.items);
+      if (!cleanItems.length) return sendRequired(res, "items");
+      update.items = cleanItems;
+    }
+
     const workOrder = await WorkOrder.findByIdAndUpdate(
       req.params.id,
-      {
-        status: req.body.status,
-        startDate: req.body.startDate || undefined,
-        dueDate: req.body.dueDate || undefined,
-        inventoryStatus: req.body.inventoryStatus
-      },
+      update,
       { new: true, runValidators: true }
     );
     if (!workOrder) return res.status(404).json({ message: "Work order not found." });
+    if (req.body.customerName?.trim()) {
+      await Order.findByIdAndUpdate(workOrder.orderId, {
+        customerName: req.body.customerName,
+        ...(Array.isArray(req.body.items) ? { items: workOrder.items.map(({ productId, productName, quantity }) => ({ productId, productName, quantity })) } : {})
+      });
+    }
     res.json(workOrder);
   } catch (error) {
     next(error);
@@ -474,6 +560,17 @@ export async function updateWorkOrderPhase(req, res, next) {
       }
 
       update = { status: req.body.status || previous.status };
+    }
+
+    const nextStatus = update.status || previous.status;
+    if (previous.status === "planned" && ["in_progress", "completed"].includes(nextStatus) && !previous.actualStartedAt) {
+      update.actualStartedAt = new Date();
+    }
+    if (previous.status === "in_progress" && nextStatus === "completed" && !previous.actualCompletedAt) {
+      update.actualCompletedAt = new Date();
+    }
+    if (previous.status === "planned" && nextStatus === "completed" && !previous.actualCompletedAt) {
+      update.actualCompletedAt = new Date();
     }
 
     const phase = await WorkOrderPhase.findByIdAndUpdate(

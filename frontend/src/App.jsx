@@ -13,7 +13,9 @@ import { OrdersPage } from "./pages/OrdersPage.jsx";
 import { PartsInventoryPage } from "./pages/PartsInventoryPage.jsx";
 import { ProductsPage } from "./pages/ProductsPage.jsx";
 import { SettingsPage } from "./pages/SettingsPage.jsx";
+import { TimelinePage } from "./pages/TimelinePage.jsx";
 import { WorkOrdersPage } from "./pages/WorkOrdersPage.jsx";
+import { label } from "./utils/i18n.js";
 
 const demoCommand = "Ustvari delovni nalog za 5 kosov izdelka Kovinsko ohisje A za podjetje AluTech do petka.";
 
@@ -33,7 +35,7 @@ function NotificationCenter({ alerts, isAdmin, onOpenAlert, onResolveAlert }) {
         <div className="notificationDropdown">
           <div className="notificationHeader">
             <Bell size={17} />
-            <strong>Opozorila</strong>
+            <strong>{label("alerts")}</strong>
             <span>{alerts.length}</span>
           </div>
           <div className="notificationList">
@@ -56,6 +58,7 @@ function NotificationCenter({ alerts, isAdmin, onOpenAlert, onResolveAlert }) {
                 <div>
                   <strong>{alert.partId?.name || "Material"}</strong>
                   <span>{alert.message}</span>
+                  <span>{label("sentBy")}: {alert.createdByName || label("noData")}</span>
                 </div>
                 <button type="button" className="notificationResolve" onClick={(event) => { event.stopPropagation(); onResolveAlert(alert._id); }} aria-label="Oznaci kot reseno">
                   <X size={14} />
@@ -65,12 +68,12 @@ function NotificationCenter({ alerts, isAdmin, onOpenAlert, onResolveAlert }) {
             {alerts.length === 0 && (
               <div className="notificationEmpty">
                 <PackageX size={17} />
-                <span>Ni odprtih opozoril.</span>
+                <span>{label("noAlerts")}</span>
               </div>
             )}
           </div>
           <div className="notificationHint">
-            Klik na opozorilo odpre zalogo in oznaci kriticne dele.
+            {label("alertHint")}
           </div>
         </div>
       )}
@@ -79,6 +82,7 @@ function NotificationCenter({ alerts, isAdmin, onOpenAlert, onResolveAlert }) {
 }
 
 function App() {
+  const [, setLanguageVersion] = useState(0);
   const [session, setSession] = useState(() => {
     const raw = localStorage.getItem("spw-session");
     return raw ? JSON.parse(raw) : null;
@@ -114,6 +118,15 @@ function App() {
     }
   }, [session]);
 
+  useEffect(() => {
+    function handleLanguageChange() {
+      setLanguageVersion((version) => version + 1);
+    }
+
+    window.addEventListener("spw-language-changed", handleLanguageChange);
+    return () => window.removeEventListener("spw-language-changed", handleLanguageChange);
+  }, []);
+
   async function handleLogin(event) {
     event.preventDefault();
     setError("");
@@ -122,7 +135,9 @@ function App() {
     try {
       const data = await api.login(login);
       localStorage.setItem("spw-session", JSON.stringify(data));
+      localStorage.setItem("spw-language", data.user?.language || "sl");
       setSession(data);
+      window.dispatchEvent(new Event("spw-language-changed"));
       setActivePage("dashboard");
     } catch (err) {
       setError(err.message);
@@ -174,10 +189,11 @@ function App() {
   const pages = {
     dashboard: <DashboardPage {...pageProps} />,
     products: <ProductsPage {...pageProps} />,
-    inventory: <PartsInventoryPage {...pageProps} highlightLowStock={highlightLowStock} />,
+    inventory: <PartsInventoryPage {...pageProps} highlightLowStock={highlightLowStock} supplyAlerts={supplyAlerts} />,
     employees: <EmployeesPage {...pageProps} />,
     orders: <OrdersPage {...pageProps} />,
     workOrders: <WorkOrdersPage {...pageProps} />,
+    timeline: <TimelinePage {...pageProps} />,
     comparison: <ComparisonPage {...pageProps} />,
     settings: isAdmin ? <SettingsPage {...pageProps} /> : <DashboardPage {...pageProps} />,
     account: <AccountPage {...pageProps} onSupplyAlertCreated={loadSupplyAlerts} />

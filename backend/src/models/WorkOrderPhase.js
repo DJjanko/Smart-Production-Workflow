@@ -10,6 +10,8 @@ const workOrderPhaseSchema = new mongoose.Schema(
     assignedToName: { type: String },
     start: { type: Date, required: true },
     end: { type: Date, required: true },
+    actualStartedAt: { type: Date },
+    actualCompletedAt: { type: Date },
     dependsOn: [{ type: String }],
     status: { type: String, enum: ["planned", "in_progress", "completed"], default: "planned" }
   },

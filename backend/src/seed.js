@@ -8,6 +8,7 @@ import { Order } from "./models/Order.js";
 import { Part } from "./models/Part.js";
 import { PartOrder } from "./models/PartOrder.js";
 import { Product } from "./models/Product.js";
+import { ProductInventory } from "./models/ProductInventory.js";
 import { User } from "./models/User.js";
 import { WorkOrder } from "./models/WorkOrder.js";
 import { WorkOrderPhase } from "./models/WorkOrderPhase.js";
@@ -55,7 +56,7 @@ export async function seedDatabase() {
     { name: "Sara Elektro", skills: ["elektro montaza", "pakiranje"], workingHoursPerDay: 8 }
   ]);
 
-  await Product.insertMany([
+  const products = await Product.insertMany([
     {
       name: "Kovinsko ohisje A",
       description: "Standardno kovinsko ohisje za industrijsko opremo.",
@@ -88,6 +89,12 @@ export async function seedDatabase() {
         { name: "Pakiranje", requiredSkill: "pakiranje", durationMinutes: 25, dependsOn: ["Kontrola"] }
       ]
     }
+  ]);
+
+  const productByName = Object.fromEntries(products.map((product) => [product.name, product]));
+  await ProductInventory.insertMany([
+    { productId: productByName["Kovinsko ohisje A"]._id, availableQuantity: 2, reservedQuantity: 0, location: "P1" },
+    { productId: productByName["Elektricna omarica B"]._id, availableQuantity: 0, reservedQuantity: 0, location: "P2" }
   ]);
 
   await ActivityLog.create({

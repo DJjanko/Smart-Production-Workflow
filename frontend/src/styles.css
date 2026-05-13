@@ -18,6 +18,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scrollbar-gutter: auto;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -27,7 +31,7 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.5) rgba(7, 5, 15, 0.28);
+  scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
 }
 
 button,
@@ -43,7 +47,7 @@ select {
 }
 
 *::-webkit-scrollbar-track {
-  background: rgba(7, 5, 15, 0.28);
+  background: transparent;
   border-radius: 999px;
 }
 
@@ -193,7 +197,24 @@ button {
   min-width: 0;
   height: 100vh;
   overflow-y: auto;
+  scrollbar-color: rgba(255, 255, 255, 0.62) transparent;
+  scrollbar-gutter: stable;
   padding: 24px;
+}
+
+.main::-webkit-scrollbar {
+  width: 10px;
+}
+
+.main::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.main::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(82, 39, 255, 0.72));
+  border: 2px solid transparent;
+  border-radius: 999px;
 }
 
 .topbar {
@@ -292,6 +313,15 @@ select {
   background: #ffffff;
   color: #182126;
   outline: none;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #5a6870 50%), linear-gradient(135deg, #5a6870 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
 }
 
 textarea {
@@ -405,6 +435,181 @@ select:focus {
   flex-wrap: wrap;
 }
 
+.inlineListControls {
+  position: relative;
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inlineControl {
+  position: relative;
+  min-width: 132px;
+  display: grid;
+  gap: 5px;
+}
+
+.inlineControl > span {
+  color: #5a6870;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.inlineControlButton {
+  min-width: 0;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid #cdd8dc;
+  border-radius: 7px;
+  color: #182126;
+  background: #ffffff;
+  font-weight: 750;
+}
+
+.inlineControlButton:hover,
+.inlineControlButton:focus {
+  border-color: #176b87;
+  box-shadow: 0 0 0 3px rgba(23, 107, 135, 0.14);
+}
+
+.inlineDropdown,
+.inlineDatePopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 45;
+  min-width: 210px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgba(24, 33, 38, 0.18);
+}
+
+.inlineDropdown button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #1b2a31;
+  background: #eef3f5;
+  text-align: left;
+  font-weight: 750;
+}
+
+.inlineDropdown button:hover,
+.inlineDropdown button.selected {
+  color: #ffffff;
+  background: #176b87;
+}
+
+.inlineDatePopover {
+  min-width: 260px;
+}
+
+.inlineDatePopover label {
+  color: #5a6870;
+}
+
+.inlineDateActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.inlineDateActions .primary,
+.inlineDateActions .iconText {
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.customSelect {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.customSelect > span {
+  color: #5a6870;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.customSelectButton {
+  width: 100%;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #cdd8dc;
+  border-radius: 7px;
+  padding: 9px 11px;
+  color: #182126;
+  background: #ffffff;
+  font-weight: 800;
+  text-align: left;
+}
+
+.customSelectButton:hover,
+.customSelectButton:focus {
+  border-color: #176b87;
+  box-shadow: 0 0 0 3px rgba(23, 107, 135, 0.14);
+  outline: none;
+}
+
+.customSelectButton span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customSelectMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 90;
+  max-height: 240px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgba(24, 33, 38, 0.18);
+  scrollbar-gutter: stable both-edges;
+}
+
+.customSelectMenu button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #1b2a31;
+  background: #eef3f5;
+  text-align: left;
+  font-weight: 800;
+}
+
+.customSelectMenu button:hover,
+.customSelectMenu button.selected {
+  color: #ffffff;
+  background: #176b87;
+}
+
 .formActionsRight {
   justify-content: flex-end;
 }
@@ -439,6 +644,16 @@ select:focus {
 .searchField {
   position: relative;
   margin-bottom: 12px;
+}
+
+.compactSearch {
+  margin-bottom: 10px;
+}
+
+.compactSearch input {
+  min-height: 36px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .searchField svg {
@@ -518,10 +733,22 @@ select:focus {
   line-height: 1.4;
 }
 
-.lowStockItem {
+.entityItem.lowStockItem,
+.entityItem.lowStockItem:nth-child(even) {
   border-color: #efb8bc;
   background: #fff1f2;
   box-shadow: inset 4px 0 0 #a13b3f;
+}
+
+.entityItem.supplyAlertItem {
+  outline: 2px solid rgba(147, 97, 22, 0.24);
+  outline-offset: -2px;
+}
+
+.supplyAlertBadge {
+  margin-top: 4px;
+  color: #6b4600;
+  background: #fff1d8;
 }
 
 .compactEntity {
@@ -590,11 +817,35 @@ select:focus {
 }
 
 .workerPhaseItem {
-  grid-template-columns: minmax(0, 1fr) minmax(170px, 220px) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .workerPhaseItem label {
   min-width: 0;
+}
+
+.workerPhaseTools {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 154px auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.workerPhaseTools .compactSearch {
+  margin-bottom: 0;
+}
+
+.workerStatusMenu {
+  width: 154px;
+}
+
+.workerPhaseDateFilter {
+  min-width: 0;
+}
+
+.workerPhaseDateFilter input {
+  width: 134px;
 }
 
 .inlineProductForm {
@@ -605,6 +856,11 @@ select:focus {
 
 .inlineProductActions {
   justify-content: flex-end;
+}
+
+.workOrderRowActions {
+  align-self: end;
+  padding-bottom: 1px;
 }
 
 .phaseBuilder {
@@ -690,7 +946,7 @@ select:focus {
 }
 
 .employeeModal {
-  width: min(100%, 1040px);
+  width: min(100%, 1180px);
 }
 
 .workOrderModal {
@@ -884,6 +1140,43 @@ select:focus {
   gap: 14px;
 }
 
+.employeeTimelineFull {
+  min-width: 0;
+}
+
+.employeeTimelineFull .timeline {
+  grid-area: auto;
+}
+
+.employeeTimelineFull .timelineList,
+.employeeTimelineFull .timelineChart {
+  max-height: min(52vh, 540px);
+}
+
+.currentWorkPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #eef8fb;
+  box-shadow: inset 4px 0 0 #176b87;
+}
+
+.currentWorkPanel > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.currentWorkPanel span,
+.currentWorkPanel p {
+  color: #72818a;
+  font-size: 0.82rem;
+}
+
 .futureTaskList {
   display: grid;
   gap: 8px;
@@ -923,6 +1216,11 @@ select:focus {
 
 .employeeInfoGrid .detailCard svg {
   color: #176b87;
+}
+
+.employeeTimelineList {
+  max-height: 320px;
+  overflow: auto;
 }
 
 .workOrderDetailGrid {
@@ -1090,9 +1388,27 @@ select:focus {
   font-size: 0.82rem;
 }
 
+.settingsDashboardDefaults {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px) minmax(180px, 220px);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #d8e1e4;
+}
+
+.settingsDashboardDefaults > div span {
+  display: block;
+  margin-top: 4px;
+  color: #72818a;
+  font-size: 0.82rem;
+}
+
 .surface {
   min-width: 0;
   padding: 16px;
+  scrollbar-gutter: stable both-edges;
 }
 
 .workOrders { grid-area: workOrders; }
@@ -1108,6 +1424,18 @@ select:focus {
   margin-bottom: 12px;
 }
 
+.timeline > .sectionHeader,
+.workOrders > .sectionHeader {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) auto;
+  align-items: start;
+}
+
+.timeline > .sectionHeader h2,
+.workOrders > .sectionHeader h2 {
+  white-space: nowrap;
+}
+
 .sectionHeader.compact {
   margin-bottom: 10px;
 }
@@ -1115,6 +1443,7 @@ select:focus {
 .table {
   display: grid;
   gap: 6px;
+  scrollbar-gutter: stable both-edges;
 }
 
 .row {
@@ -1126,6 +1455,29 @@ select:focus {
   padding: 9px 10px;
   border-radius: 7px;
   background: #f7f9f9;
+}
+
+.dashboardClickableRow {
+  width: 100%;
+  border: 1px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.dashboardClickableRow:hover,
+.dashboardClickableRow:focus {
+  border-color: #9fc6d2;
+  background: #eef8fb;
+  outline: none;
+}
+
+.dashboardClickableRow.selectedFilterItem,
+.dashboardClickableRow.selectedFilterItem:hover,
+.dashboardClickableRow.selectedFilterItem:focus {
+  border-color: #5aa9bd;
+  background: #dff3f8;
+  box-shadow: inset 4px 0 0 #176b87, 0 0 0 2px rgba(23, 107, 135, 0.12);
 }
 
 .row.head {
@@ -1158,6 +1510,7 @@ select:focus {
 .resultContent {
   display: grid;
   gap: 9px;
+  scrollbar-gutter: stable both-edges;
 }
 
 .inventoryItem,
@@ -1202,9 +1555,505 @@ select:focus {
   grid-template-columns: 130px minmax(0, 1fr) auto;
 }
 
-.phaseTime {
-  color: #5a6870;
+.phaseColorItem {
+  box-shadow: inset 12px 0 0 var(--phase-color, #c1d3db);
+}
+
+.phaseBody span b {
+  color: #34444b;
+  font-weight: 850;
+}
+
+.timelineHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.timelineHeaderActions > span {
+  width: 124px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.timelineHeaderActions .iconText {
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.workloadHeader {
+  align-items: start;
+}
+
+.workloadHeaderControls {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.workloadHeaderControls .rangeControls {
+  justify-self: end;
+}
+
+.workloadHeaderControls > span {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  color: #72818a;
   font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.05;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.compactButton {
+  width: 94px;
+  min-height: 32px;
+  padding: 6px 9px;
+}
+
+.filterHint,
+.timelineRangeLabel {
+  margin-top: 4px;
+  color: #72818a;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.timelineFilterRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: -4px 0 8px;
+}
+
+.filterCount {
+  color: #72818a;
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.timelineFilterRow .filterHint {
+  min-width: 0;
+  max-width: min(100%, 620px);
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timelineRangeLabel {
+  margin: 0 0 10px;
+  color: #5a6870;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.rangeControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 4px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #eef3f5;
+}
+
+.rangeControls button {
+  min-width: 28px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: #4f5f66;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.rangeControls button.selected {
+  color: #ffffff;
+  background: #176b87;
+}
+
+.rangeControls input {
+  width: 144px;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 0;
+  border-left: 1px solid #d8e1e4;
+  border-radius: 0;
+  color: #06151b;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-align: center;
+}
+
+.rangeControls.monthControl input {
+  width: 124px;
+}
+
+.rangeControls.monthControl input[type="number"] {
+  width: 88px;
+}
+
+.timelineHeaderActions > .iconText:last-child,
+.workOrders .timelineHeaderActions > .iconText:last-child {
+  width: 94px;
+}
+
+.statusFilterControl {
+  width: 154px;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.statusFilterButton {
+  width: 100%;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  color: #176b87;
+  background: #eef3f5;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.statusFilterButton:hover,
+.statusFilterButton:focus {
+  border-color: #9fc6d2;
+  background: #e6f2f5;
+  outline: none;
+}
+
+.statusFilterButton span {
+  min-width: 0;
+  overflow: hidden;
+  color: #172026;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusFilterMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 85;
+  width: 180px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgba(24, 33, 38, 0.18);
+}
+
+.statusFilterMenu button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #1b2a31;
+  background: #eef3f5;
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.statusFilterMenu button:hover,
+.statusFilterMenu button.selected {
+  color: #ffffff;
+  background: #176b87;
+}
+
+.timelineGraph {
+  display: grid;
+  gap: 8px;
+}
+
+.timelineAxis {
+  position: relative;
+  height: 26px;
+  margin: 0 162px 0 min(34%, 220px);
+  border-bottom: 1px solid #d8e1e4;
+}
+
+.timelineAxis span {
+  position: absolute;
+  top: 0;
+  color: #5a6870;
+  font-size: 0.72rem;
+  font-weight: 800;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.timelineAxis span::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 17px;
+  width: 1px;
+  height: 8px;
+  background: #c8d5da;
+}
+
+.timelineChart {
+  max-height: 520px;
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding-right: 4px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.timeline .timelineList {
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.timelineBarRow {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.34fr) minmax(220px, 1fr) minmax(150px, 0.34fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #d9e3e7;
+  border-radius: 7px;
+  background: #eef3f5;
+}
+
+button.timelineBarRow {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.timelineBarRow > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.timelineBarRow span {
+  color: #72818a;
+  font-size: 0.78rem;
+}
+
+.timelineBarRow > span:last-child {
+  color: #415057;
+  font-size: 0.82rem;
+  font-weight: 850;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.timelineBarTrack {
+  position: relative;
+  height: 28px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfe7ea;
+}
+
+.timelineBar {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  min-width: 10px;
+  border-radius: 999px;
+  background: #176b87;
+}
+
+.timelineBar.in_progress { background: #936116; }
+.timelineBar.completed { background: #1f7b52; }
+.timelineBar.delayed { background: #a13b3f; }
+
+.timelineFilterPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.timelineFilterPanelSingle {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.timelineFilterGroup {
+  min-width: 0;
+}
+
+.timelineScopeBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: -4px 0 16px;
+}
+
+.timelineScopeBar > span {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.36);
+}
+
+.timelineScopeButtons button {
+  min-width: 82px;
+}
+
+.filterChipList {
+  max-height: 112px;
+  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.filterChipList button {
+  min-height: 32px;
+  border: 1px solid #d8e1e4;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #34444b;
+  background: #eef3f5;
+  font-weight: 800;
+}
+
+.filterChipList button.selected {
+  border-color: #176b87;
+  color: #ffffff;
+  background: #176b87;
+}
+
+.timelineBoard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.timelineStatusColumn {
+  min-width: 0;
+  min-height: 520px;
+  padding: 14px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #ffffff;
+  scrollbar-gutter: stable both-edges;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.timelineStatusColumn.planned {
+  box-shadow: inset 0 4px 0 #176b87;
+}
+
+.timelineStatusColumn.in_progress {
+  box-shadow: inset 0 4px 0 #936116;
+}
+
+.timelineStatusColumn.completed {
+  box-shadow: inset 0 4px 0 #1f7b52;
+}
+
+.timelineStatusColumn.dropReady {
+  border-color: #76b4c4;
+  background: #f7fcfd;
+  outline: 2px dashed rgba(23, 107, 135, 0.28);
+  outline-offset: -8px;
+}
+
+.timelineStatusList {
+  max-height: calc(100vh - 320px);
+  min-height: 420px;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding-right: 4px;
+  scrollbar-gutter: stable both-edges;
+}
+
+.timelinePhaseCard {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d9e3e7;
+  border-radius: 8px;
+  background: #eef3f5;
+  box-shadow: inset 4px 0 0 #c1d3db;
+  cursor: grab;
+  transition: opacity 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+}
+
+.timelinePhaseCard:active {
+  cursor: grabbing;
+}
+
+.timelinePhaseCard.dragging {
+  opacity: 0.55;
+  transform: scale(0.99);
+  border-color: #76b4c4;
+}
+
+.timelinePhaseCard > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.timelinePhaseCard span,
+.timelinePhaseCard p {
+  color: #72818a;
+  font-size: 0.82rem;
+}
+
+.phaseStatusActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.phaseStatusActions button {
+  min-height: 32px;
+  border: 1px solid #d8e1e4;
+  border-radius: 7px;
+  color: #34444b;
+  background: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.phaseStatusActions button.selected {
+  border-color: #176b87;
+  color: #ffffff;
+  background: #176b87;
+}
+
+.phaseTime {
+  padding-left: 10px;
+  color: #34444b;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.01em;
 }
 
 .phaseBody {
@@ -1213,11 +2062,39 @@ select:focus {
 }
 
 .workloadItem {
-  grid-template-columns: minmax(150px, 1fr) 120px 58px;
+  grid-template-columns: minmax(150px, 1fr) 120px 64px;
 }
 
-.workloadItem b {
+button.workloadItem {
+  border: 1px solid #d9e3e7;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.workloadMetric {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
   text-align: right;
+}
+
+.workloadMetric strong {
+  line-height: 1.05;
+  font-size: 0.96rem;
+  font-weight: 900;
+}
+
+.workloadMetric span {
+  width: 100%;
+  display: block;
+  margin: 0;
+  padding-top: 4px;
+  border-top: 1px solid #cdd8dc;
+  color: #34444b;
+  line-height: 1.05;
+  font-size: 0.76rem;
+  font-weight: 850;
 }
 
 .barTrack {
@@ -1925,7 +2802,9 @@ pre {
   .metrics,
   .workspaceGrid,
   .workerDashboardGrid,
-  .crudGrid {
+  .crudGrid,
+  .timelineFilterPanel,
+  .timelineBoard {
     grid-template-columns: 1fr;
     grid-template-areas: none;
   }
@@ -1934,6 +2813,8 @@ pre {
   .comparisonFilters,
   .accountGrid,
   .settingsLanguage,
+  .settingsDashboardDefaults,
+  .workerPhaseTools,
   .entityItem,
   .compactEntity,
   .productDetailHero,
@@ -1941,10 +2822,12 @@ pre {
   .employeeStatsGrid,
   .employeeDetailLayout,
   .employeeInfoGrid,
+  .currentWorkPanel,
   .workOrderDetailGrid,
   .assigneeGrid,
   .phaseFormGrid,
-  .phaseObject {
+  .phaseObject,
+  .timelineBarRow {
     grid-template-columns: 1fr;
   }
 
@@ -1960,6 +2843,10 @@ pre {
 
   .phaseDetailHeader {
     display: grid;
+  }
+
+  .timelineAxis {
+    margin: 0 0 0 0;
   }
 
   .accountStats {

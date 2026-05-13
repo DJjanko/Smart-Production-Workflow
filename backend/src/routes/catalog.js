@@ -6,6 +6,7 @@ import {
   createOrder,
   createPart,
   createProduct,
+  createProductInventory,
   createSupplyAlert,
   createUser,
   createWorkOrderPhase,
@@ -14,6 +15,7 @@ import {
   deleteOrder,
   deletePart,
   deleteProduct,
+  deleteProductInventory,
   deleteUser,
   deleteWorkOrder,
   deleteWorkOrderPhase,
@@ -23,6 +25,7 @@ import {
   getMe,
   getOrders,
   getParts,
+  getProductInventory,
   getProducts,
   getSupplyAlerts,
   getUsers,
@@ -34,6 +37,7 @@ import {
   updateOrder,
   updatePart,
   updateProduct,
+  updateProductInventory,
   updateUser,
   updateWorkOrder,
   updateWorkOrderPhase,
@@ -47,6 +51,9 @@ const adminOnly = [authenticate, requireRole("admin")];
 
 catalogRouter.route("/products").get(getProducts).post(adminOnly, createProduct);
 catalogRouter.route("/products/:id").put(adminOnly, updateProduct).delete(adminOnly, deleteProduct);
+
+catalogRouter.route("/product-inventory").get(getProductInventory).post(adminOnly, createProductInventory);
+catalogRouter.route("/product-inventory/:id").put(adminOnly, updateProductInventory).delete(adminOnly, deleteProductInventory);
 
 catalogRouter.route("/parts").get(getParts).post(adminOnly, createPart);
 catalogRouter.route("/parts/:id").put(adminOnly, updatePart).delete(adminOnly, deletePart);

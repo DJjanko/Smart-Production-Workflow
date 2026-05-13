@@ -1,5 +1,6 @@
 import {
   Boxes,
+  CalendarDays,
   ClipboardList,
   Gauge,
   Hammer,
@@ -11,16 +12,18 @@ import {
   UsersRound
 } from "lucide-react";
 import logo from "../images/logo.png";
+import { label } from "../utils/i18n.js";
 
 const navItems = [
-  { key: "dashboard", label: "Pregled", icon: LayoutDashboard },
-  { key: "products", label: "Izdelki", icon: Boxes },
-  { key: "inventory", label: "Zaloga", icon: PackageCheck },
-  { key: "employees", label: "Zaposleni", icon: UsersRound },
-  { key: "orders", label: "Narocila", icon: ClipboardList },
-  { key: "workOrders", label: "Delovni nalogi", icon: Hammer },
-  { key: "comparison", label: "Primerjava", icon: Gauge },
-  { key: "settings", label: "Nastavitve", icon: Settings, adminOnly: true }
+  { key: "dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { key: "timeline", labelKey: "timeline", icon: CalendarDays },
+  { key: "products", labelKey: "products", icon: Boxes },
+  { key: "inventory", labelKey: "inventory", icon: PackageCheck },
+  { key: "employees", labelKey: "employees", icon: UsersRound },
+  { key: "orders", labelKey: "orders", icon: ClipboardList, adminOnly: true },
+  { key: "workOrders", labelKey: "workOrders", icon: Hammer },
+  { key: "comparison", labelKey: "comparison", icon: Gauge, adminOnly: true },
+  { key: "settings", labelKey: "settings", icon: Settings, adminOnly: true }
 ];
 
 export function Sidebar({ activePage, onNavigate, onLogout, session }) {
@@ -38,14 +41,14 @@ export function Sidebar({ activePage, onNavigate, onLogout, session }) {
         </div>
 
         <nav className="navList" aria-label="Main">
-          {navItems.filter((item) => !item.adminOnly || isAdmin).map(({ key, label, icon: Icon }) => (
+          {navItems.filter((item) => !item.adminOnly || isAdmin).map(({ key, labelKey, icon: Icon }) => (
             <button
               key={key}
               className={`navItem ${activePage === key ? "active" : ""}`}
               onClick={() => onNavigate(key)}
             >
               <Icon size={18} />
-              {label}
+              {label(labelKey)}
             </button>
           ))}
         </nav>
@@ -57,11 +60,11 @@ export function Sidebar({ activePage, onNavigate, onLogout, session }) {
           onClick={() => onNavigate("account")}
         >
           <UserCircle size={18} />
-          My account
+          {label("account")}
         </button>
         <button className="navItem logoutButton" onClick={onLogout}>
           <LogOut size={18} />
-          Odjava
+          {label("logout")}
         </button>
       </div>
     </aside>

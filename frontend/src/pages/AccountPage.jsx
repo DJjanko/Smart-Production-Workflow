@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Briefcase, CalendarDays, Camera, Clock3, ClipboardCheck, KeyRound, Save, UserCircle } from "lucide-react";
 import { api } from "../api.js";
+import { CustomSelect } from "../components/CustomSelect.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
+import { StatusBadge } from "../components/StatusBadge.jsx";
+import { label } from "../utils/i18n.js";
 
 const emptyPassword = { currentPassword: "", newPassword: "" };
+const languageOptions = [
+  { value: "sl", label: "Slovenscina" },
+  { value: "en", label: "Anglescina" }
+];
 
 function getWeekRange() {
   const now = new Date();
@@ -115,12 +122,30 @@ export function AccountPage({ session }) {
     reader.readAsDataURL(file);
   }
 
+  async function changeLanguage(language) {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const updated = await api.updateMe({ language }, session.token);
+      setAccount(updated);
+      localStorage.setItem("spw-language", language);
+      localStorage.setItem("spw-session", JSON.stringify({ ...session, user: updated }));
+      window.dispatchEvent(new Event("spw-language-changed"));
+      setMessage("Jezik je posodobljen.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="main">
       <header className="topbar">
         <div>
-          <h1>My account</h1>
-          <p>Prijavljeni uporabnik, statistika in osebne nastavitve.</p>
+          <h1>{label("account")}</h1>
+          <p>{label("accountSubtitle")}</p>
         </div>
       </header>
 
@@ -146,17 +171,31 @@ export function AccountPage({ session }) {
             <h2>Spremeni geslo</h2>
             <KeyRound size={18} />
           </div>
-          <label>Trenutno geslo<input type="password" value={passwordForm.currentPassword} onChange={(event) => setPasswordForm({ ...passwordForm, currentPassword: event.target.value })} /></label>
-          <label>Novo geslo<input type="password" value={passwordForm.newPassword} onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })} /></label>
+          <label>{label("currentPassword")}<input type="password" value={passwordForm.currentPassword} onChange={(event) => setPasswordForm({ ...passwordForm, currentPassword: event.target.value })} /></label>
+          <label>{label("newPassword")}<input type="password" value={passwordForm.newPassword} onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })} /></label>
           <div className="formActions formActionsRight">
-            <button className="primary" disabled={loading}><Save size={17} />Shrani geslo</button>
+            <button className="primary" disabled={loading}><Save size={17} />{label("savePassword")}</button>
           </div>
         </form>
+
+        <div className="surface formPanel">
+          <div className="sectionHeader">
+            <h2>{label("appLanguage")}</h2>
+            <span>{account.language || "sl"}</span>
+          </div>
+          <CustomSelect
+            label={label("appLanguage")}
+            value={account.language || "sl"}
+            options={languageOptions}
+            onChange={changeLanguage}
+            disabled={loading}
+          />
+        </div>
 
         <div className="surface accountStats">
           <div className="sectionHeader">
             <h2>Moja statistika</h2>
-            <span>ta teden</span>
+            <span>{label("thisWeek")}</span>
           </div>
           <div className="employeeStatsGrid">
             <div className="employeeStat"><ClipboardCheck size={18} /><span>Nalogi</span><strong>{employeeStats.completedWorkOrders}</strong></div>
@@ -171,7 +210,7 @@ export function AccountPage({ session }) {
                   <strong>{phase.name}</strong>
                   <span>{phase.workOrderId?.code || "Delovni nalog"} / {phase.requiredSkill}</span>
                 </div>
-                <span className={`status ${phase.status}`}>{phase.status}</span>
+                <StatusBadge value={phase.status} />
               </div>
             ))}
             {employeeStats.upcoming.length === 0 && <EmptyState label="Ni planiranih nalog" />}
