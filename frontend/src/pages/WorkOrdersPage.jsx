@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Hammer, Pencil, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Hammer, Pencil, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { InlineDateTimeMenu, InlineStatusMenu } from "../components/InlineControls.jsx";
 import { OrderItemsEditor, normalizeOrderItems } from "../components/OrderItemsEditor.jsx";
 import { StatusBadge } from "../components/StatusBadge.jsx";
+import { StatusFilterMenu } from "../components/StatusFilterMenu.jsx";
 import { WorkOrderDetailModal } from "../components/WorkOrderDetailModal.jsx";
 import { WorkOrdersTimeline } from "../components/WorkOrdersTimeline.jsx";
 import { formatDate } from "../utils/date.js";
@@ -41,6 +42,7 @@ export function WorkOrdersPage({ session }) {
   const [editingPhase, setEditingPhase] = useState(null);
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState(null);
   const [workOrderSearch, setWorkOrderSearch] = useState("");
+  const [workOrderStatusFilter, setWorkOrderStatusFilter] = useState("all");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -67,17 +69,17 @@ export function WorkOrdersPage({ session }) {
 
   const filteredWorkOrders = useMemo(() => {
     const query = workOrderSearch.trim().toLowerCase();
-    if (!query) return workOrders;
 
     return workOrders.filter((order) =>
-      [
+      (workOrderStatusFilter === "all" || order.status === workOrderStatusFilter)
+      && (!query || [
         order.code,
         order.status,
         order.inventoryStatus,
         order.items?.map((item) => `${item.quantity} ${item.productName}`).join(" ")
-      ].join(" ").toLowerCase().includes(query)
+      ].join(" ").toLowerCase().includes(query))
     );
-  }, [workOrders, workOrderSearch]);
+  }, [workOrders, workOrderSearch, workOrderStatusFilter]);
 
   const productById = useMemo(() => new Map(products.map((product) => [product._id, product])), [products]);
   const selectedWorkOrder = selectedWorkOrderId ? workOrders.find((order) => order._id === selectedWorkOrderId) : null;
@@ -197,6 +199,20 @@ export function WorkOrdersPage({ session }) {
     }
   }
 
+  async function approvePayment(orderId) {
+    setError("");
+    setLoading(true);
+
+    try {
+      await api.approveWorkOrder(orderId, session.token);
+      await loadPageData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function savePhaseEdit() {
     setError("");
     setLoading(true);
@@ -240,6 +256,7 @@ export function WorkOrdersPage({ session }) {
         <div className="sectionHeader">
           <h2>{label("workOrdersList")}</h2>
           <div className="sectionActions">
+            <StatusFilterMenu value={workOrderStatusFilter} onChange={setWorkOrderStatusFilter} ariaLabel="Filter statusa delovnih nalogov" />
             <span>{filteredWorkOrders.length} / {workOrders.length}</span>
             {isAdmin && <button type="button" className="primary" onClick={() => setShowCreateManual(true)}><Plus size={17} />{label("add")}</button>}
           </div>
@@ -347,7 +364,7 @@ export function WorkOrdersPage({ session }) {
 
               return (
                 <div
-                  className={`entityItem ${isEditing ? "entityEditing" : "productEntity"}`}
+                  className={`entityItem ${isEditing ? "entityEditing" : "productEntity"} status-${order.status} ${order.status === "completed" && order.fulfillmentStatus === "awaiting_payment" ? "awaitingPayment" : ""}`}
                   key={order._id}
                   role={isEditing ? undefined : "button"}
                   tabIndex={isEditing ? undefined : 0}
@@ -392,7 +409,7 @@ export function WorkOrdersPage({ session }) {
                         <InlineStatusMenu
                           label={label("status")}
                           value={order.status}
-                          options={["planned", "in_progress", "completed", "delayed"]}
+                          options={["planned", "in_progress", "completed", "sold", "delayed"]}
                           onChange={(status) => saveWorkOrderField(order, { status })}
                           disabled={loading}
                         />
@@ -406,6 +423,17 @@ export function WorkOrdersPage({ session }) {
                         <InlineDateTimeMenu label={label("deadline")} value={order.dueDate} onChange={(dueDate) => saveWorkOrderField(order, { dueDate })} disabled={loading} />
                       </div>}
                       {isAdmin && <div className="rowActions workOrderRowActions">
+                        {order.status === "completed" && order.fulfillmentStatus === "awaiting_payment" && (
+                          <button
+                            type="button"
+                            className="primary approveButton"
+                            onClick={(event) => { event.stopPropagation(); approvePayment(order._id); }}
+                            disabled={loading}
+                          >
+                            <CheckCircle2 size={17} />
+                            {label("approvePayment")}
+                          </button>
+                        )}
                         <button className="iconButton workOrderEditButton" onClick={(event) => { event.stopPropagation(); setEditingWorkOrder(workOrderToForm(order)); }} aria-label="Uredi delovni nalog"><Pencil size={17} /></button>
                         <button className="dangerButton" onClick={(event) => { event.stopPropagation(); deleteWorkOrder(order._id); }}><Trash2 size={17} /></button>
                       </div>}
@@ -433,6 +461,7 @@ export function WorkOrdersPage({ session }) {
         setEditingPhase={setEditingPhase}
         savePhaseEdit={savePhaseEdit}
         loading={loading}
+        onApprovePayment={isAdmin ? approvePayment : undefined}
         onClose={() => { setSelectedWorkOrderId(null); setEditingPhase(null); }}
       />
     </main>

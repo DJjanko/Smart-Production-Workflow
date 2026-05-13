@@ -6,6 +6,7 @@ import { InlineDateTimeMenu, InlineStatusMenu } from "../components/InlineContro
 import { OrderDetailModal } from "../components/OrderDetailModal.jsx";
 import { OrderItemsEditor, normalizeOrderItems } from "../components/OrderItemsEditor.jsx";
 import { StatusBadge } from "../components/StatusBadge.jsx";
+import { StatusFilterMenu } from "../components/StatusFilterMenu.jsx";
 import { formatDate } from "../utils/date.js";
 import { label, statusLabel } from "../utils/i18n.js";
 
@@ -42,6 +43,7 @@ export function OrdersPage({ session }) {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -62,16 +64,15 @@ export function OrdersPage({ session }) {
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return orders;
-
     return orders.filter((order) =>
-      [
+      (statusFilter === "all" || order.status === statusFilter)
+      && (!query || [
         order.customerName,
         order.status,
         order.items?.map((item) => `${item.quantity} ${item.productName}`).join(" ")
-      ].join(" ").toLowerCase().includes(query)
+      ].join(" ").toLowerCase().includes(query))
     );
-  }, [orders, search]);
+  }, [orders, search, statusFilter]);
   const selectedOrder = selectedOrderId ? orders.find((order) => order._id === selectedOrderId) : null;
 
   async function createOrder(event) {
@@ -177,6 +178,12 @@ export function OrdersPage({ session }) {
           <div className="sectionHeader">
             <h2>{label("ordersList")}</h2>
             <div className="sectionActions">
+              <StatusFilterMenu
+                value={statusFilter}
+                onChange={setStatusFilter}
+                statuses={["draft", "confirmed", "in_production", "completed", "sold"]}
+                ariaLabel="Filter statusa narocil"
+              />
               <span>{filteredOrders.length} / {orders.length}</span>
               {isAdmin && <button type="button" className="primary" onClick={() => setShowCreate(true)}>
                 <Plus size={17} />
@@ -210,6 +217,7 @@ export function OrdersPage({ session }) {
                   <option value="confirmed">{statusLabel("confirmed")}</option>
                   <option value="in_production">{statusLabel("in_production")}</option>
                   <option value="completed">{statusLabel("completed")}</option>
+                  <option value="sold">{statusLabel("sold")}</option>
                 </select>
               </label>
               <div className="formActions formActionsRight">
@@ -274,7 +282,7 @@ export function OrdersPage({ session }) {
                           <InlineStatusMenu
                             label={label("status")}
                             value={order.status}
-                            options={["draft", "confirmed", "in_production", "completed"]}
+                            options={["draft", "confirmed", "in_production", "completed", "sold"]}
                             onChange={(status) => saveOrderField(order, { status })}
                             disabled={loading}
                           />

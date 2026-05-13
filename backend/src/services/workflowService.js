@@ -50,6 +50,25 @@ export async function getDashboardData() {
     };
   });
   const lowStock = inventory.filter((item) => item.productId && item.availableQuantity <= 0);
+  const fulfillmentStats = workOrders.reduce(
+    (stats, workOrder) => {
+      const completed = ["completed", "sold"].includes(workOrder.status) || ["awaiting_payment", "sold", "issued"].includes(workOrder.fulfillmentStatus);
+      const sold = workOrder.status === "sold" || ["sold", "issued"].includes(workOrder.fulfillmentStatus);
+      if (!completed) return stats;
+
+      for (const item of workOrder.items || []) {
+        const produced = item.issuedFromProduction || item.toProduce || 0;
+        stats.completedProducts += produced;
+        if (sold) {
+          const issued = item.issuedQuantity || item.quantity || 0;
+          stats.issuedProducts += issued;
+        }
+      }
+
+      return stats;
+    },
+    { completedProducts: 0, issuedProducts: 0 }
+  );
   const workload = employees.map((employee) => {
     const assigned = phases.filter((phase) => String(phase.assignedTo) === String(employee._id));
     const minutes = assigned.reduce((sum, phase) => {
@@ -64,7 +83,7 @@ export async function getDashboardData() {
     };
   });
 
-  return { activeWorkOrders, lowStock, workOrders, phases, employees: workload, inventory, activities };
+  return { activeWorkOrders, lowStock, workOrders, phases, employees: workload, inventory, activities, fulfillmentStats };
 }
 
 export async function findProductByName(productName) {
@@ -141,18 +160,184 @@ async function reserveFinishedProducts(product, quantity) {
   if (quantity <= 0) return 0;
 
   const row = await ProductInventory.findOne({ productId: product._id });
-  const available = Math.max(0, row?.availableQuantity || 0);
+  const available = Math.max(0, (row?.availableQuantity || 0) - (row?.reservedQuantity || 0));
   const fromStock = Math.min(available, quantity);
 
   if (fromStock > 0) {
     await ProductInventory.updateOne(
       { productId: product._id },
-      { $inc: { availableQuantity: -fromStock, reservedQuantity: fromStock }, $setOnInsert: { location: "FINISHED" } },
+      { $inc: { reservedQuantity: fromStock }, $setOnInsert: { location: "FINISHED", availableQuantity: 0 } },
       { upsert: true }
     );
   }
 
   return fromStock;
+}
+
+export async function completeWorkOrderForApproval(workOrderId, { actor = "system", llmProvider = "mock", rawInput } = {}) {
+  const started = Date.now();
+  const workOrder = await WorkOrder.findById(workOrderId);
+  if (!workOrder) {
+    throw new Error("Work order was not found.");
+  }
+
+  if (["awaiting_payment", "sold", "issued"].includes(workOrder.fulfillmentStatus)) {
+    return workOrder;
+  }
+
+  const completedAt = new Date();
+  const updatedItems = workOrder.items.map((item) => {
+    const quantity = Number(item.quantity) || 0;
+    const fromStock = Number(item.fromStock) || 0;
+    const toProduce = Number(item.toProduce ?? Math.max(0, quantity - fromStock)) || 0;
+
+    return {
+      productId: item.productId,
+      productName: item.productName,
+      quantity,
+      fromStock,
+      toProduce,
+      issuedFromStock: item.issuedFromStock || 0,
+      issuedFromProduction: item.issuedFromProduction || 0,
+      issuedQuantity: item.issuedQuantity || 0
+    };
+  });
+
+  await Promise.all(
+    updatedItems
+      .filter((item) => item.productId && item.toProduce > 0)
+      .map((item) =>
+        ProductInventory.updateOne(
+          { productId: item.productId },
+          { $inc: { availableQuantity: item.toProduce }, $setOnInsert: { location: "FINISHED", reservedQuantity: 0 } },
+          { upsert: true }
+        )
+      )
+  );
+
+  workOrder.items = updatedItems;
+  workOrder.status = "completed";
+  workOrder.completedAt = workOrder.completedAt || completedAt;
+  workOrder.fulfillmentStatus = "awaiting_payment";
+  await workOrder.save();
+
+  await Order.findByIdAndUpdate(workOrder.orderId, {
+    status: "completed",
+    items: updatedItems.map(({ productId, productName, quantity, fromStock, toProduce }) => ({
+      productId,
+      productName,
+      quantity,
+      fromStock,
+      toProduce
+    }))
+  });
+
+  await ActivityLog.create({
+    actor,
+    action: "complete_work_order_for_payment",
+    llmProvider,
+    mcpTool: "complete_work_order_for_approval",
+    input: rawInput || { workOrderId },
+    output: {
+      workOrderCode: workOrder.code,
+      completedProducts: updatedItems.reduce((sum, item) => sum + item.toProduce, 0),
+      reservedFromStock: updatedItems.reduce((sum, item) => sum + item.fromStock, 0)
+    },
+    durationMs: Date.now() - started
+  });
+
+  return workOrder;
+}
+
+export async function approveWorkOrderPayment(workOrderId, { actor = "system", llmProvider = "mock", rawInput } = {}) {
+  const started = Date.now();
+  let workOrder = await WorkOrder.findById(workOrderId);
+  if (!workOrder) {
+    throw new Error("Work order was not found.");
+  }
+
+  if (["sold", "issued"].includes(workOrder.fulfillmentStatus)) {
+    return workOrder;
+  }
+
+  if (workOrder.fulfillmentStatus === "open") {
+    workOrder = await completeWorkOrderForApproval(workOrderId, { actor, llmProvider, rawInput });
+  }
+
+  const soldAt = new Date();
+  const updatedItems = workOrder.items.map((item) => {
+    const quantity = Number(item.quantity) || 0;
+    const fromStock = Number(item.fromStock) || 0;
+    const toProduce = Number(item.toProduce ?? Math.max(0, quantity - fromStock)) || 0;
+
+    return {
+      productId: item.productId,
+      productName: item.productName,
+      quantity,
+      fromStock,
+      toProduce,
+      issuedFromStock: fromStock,
+      issuedFromProduction: toProduce,
+      issuedQuantity: quantity
+    };
+  });
+
+  await Promise.all(
+    updatedItems
+      .filter((item) => item.productId && item.issuedQuantity > 0)
+      .map((item) =>
+        ProductInventory.updateOne(
+          { productId: item.productId },
+          {
+            $inc: {
+              availableQuantity: -item.issuedQuantity,
+              reservedQuantity: -item.issuedFromStock
+            },
+            $setOnInsert: { location: "FINISHED" }
+          },
+          { upsert: true }
+        )
+      )
+  );
+
+  workOrder.items = updatedItems;
+  workOrder.status = "sold";
+  workOrder.completedAt = workOrder.completedAt || soldAt;
+  workOrder.issuedAt = soldAt;
+  workOrder.fulfillmentStatus = "sold";
+  await workOrder.save();
+
+  await Order.findByIdAndUpdate(workOrder.orderId, {
+    status: "sold",
+    fulfilledAt: soldAt,
+    items: updatedItems.map(({ productId, productName, quantity, fromStock, toProduce, issuedFromStock, issuedFromProduction, issuedQuantity }) => ({
+      productId,
+      productName,
+      quantity,
+      fromStock,
+      toProduce,
+      issuedFromStock,
+      issuedFromProduction,
+      issuedQuantity
+    }))
+  });
+
+  await ActivityLog.create({
+    actor,
+    action: "approve_payment_and_sell",
+    llmProvider,
+    mcpTool: "approve_work_order_payment",
+    input: rawInput || { workOrderId },
+    output: {
+      workOrderCode: workOrder.code,
+      soldProducts: updatedItems.reduce((sum, item) => sum + item.issuedQuantity, 0),
+      soldFromStock: updatedItems.reduce((sum, item) => sum + item.issuedFromStock, 0),
+      soldFromProduction: updatedItems.reduce((sum, item) => sum + item.issuedFromProduction, 0)
+    },
+    durationMs: Date.now() - started
+  });
+
+  return workOrder;
 }
 
 async function nextWorkOrderCode() {
@@ -264,8 +449,15 @@ export async function processCustomerOrder({ customerName, productName, quantity
   }
 
   const phases = toProduce > 0 ? await generateAndAssignPhases({ workOrder, product, quantity: toProduce, startDate }) : [];
+  if (toProduce === 0) {
+    await completeWorkOrderForApproval(workOrder._id, {
+      actor,
+      llmProvider,
+      rawInput: { source: "finished_stock", customerName, productName, quantity, requestedDeadline }
+    });
+  }
   const output = {
-    workOrder,
+    workOrder: toProduce === 0 ? await WorkOrder.findById(workOrder._id).lean() : workOrder,
     phases,
     inventoryCheck: firstCheck,
     partOrder,
@@ -284,6 +476,65 @@ export async function processCustomerOrder({ customerName, productName, quantity
       inventoryStatus,
       finishedStockUsed: fromStock,
       orderedParts: partOrder?.parts || []
+    },
+    durationMs: Date.now() - started
+  });
+
+  return output;
+}
+
+export async function createWorkOrderOnly({ customerName, productName, quantity, requestedDeadline, actor = "admin", llmProvider = "mock", rawInput }) {
+  const started = Date.now();
+  const product = await findProductByName(productName);
+
+  if (!product) {
+    throw new Error(`Product "${productName}" was not found.`);
+  }
+
+  const parsedQuantity = Number(quantity);
+  if (!Number.isFinite(parsedQuantity) || parsedQuantity < 1) {
+    throw new Error("Quantity must be a positive number.");
+  }
+
+  const order = await Order.create({
+    customerName: customerName || "Unknown customer",
+    items: [{ productId: product._id, productName: product.name, quantity: parsedQuantity }],
+    requestedDeadline
+  });
+
+  const startDate = new Date();
+  const workOrder = await WorkOrder.create({
+    code: await nextWorkOrderCode(),
+    orderId: order._id,
+    items: [{
+      productId: product._id,
+      productName: product.name,
+      quantity: parsedQuantity,
+      fromStock: 0,
+      toProduce: parsedQuantity
+    }],
+    status: "planned",
+    startDate,
+    dueDate: requestedDeadline ? new Date(requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),
+    inventoryStatus: "available"
+  });
+
+  const output = {
+    workOrder,
+    phases: [],
+    message: `${workOrder.code} created for ${parsedQuantity} x ${product.name}. Automatic inventory checks and phase assignment were skipped.`
+  };
+
+  await ActivityLog.create({
+    actor,
+    action: "create_work_order_only",
+    llmProvider,
+    mcpTool: "create_work_order_only",
+    input: rawInput || { customerName, productName, quantity, requestedDeadline },
+    output: {
+      workOrderCode: workOrder.code,
+      phaseCount: 0,
+      inventoryStatus: "not_checked"
     },
     durationMs: Date.now() - started
   });
@@ -367,8 +618,16 @@ export async function processCustomerOrderItems({ customerName, items, requested
     phases.push(...await generateAndAssignPhases({ workOrder, product, quantity: workOrderItem.toProduce, startDate }));
   }
 
+  if (totalToProduce === 0) {
+    await completeWorkOrderForApproval(workOrder._id, {
+      actor,
+      llmProvider,
+      rawInput: { source: "finished_stock", customerName, items: cleanItems, requestedDeadline }
+    });
+  }
+
   const output = {
-    workOrder,
+    workOrder: totalToProduce === 0 ? await WorkOrder.findById(workOrder._id).lean() : workOrder,
     phases,
     inventoryCheck: inventoryChecks,
     partOrders,
@@ -404,6 +663,7 @@ export async function interpretCommand(command) {
 
   const quantityMatch = normalized.match(/(\d+)\s*(kos|kom|izdel|kovinsk|elektric|x)?/);
   const customerMatch = command.match(/(?:podjetje|za podjetje)\s+([A-ZČŠŽ][\wČŠŽčšž-]+)/i);
+  const wantsBasicWorkOrder = normalized.includes("samo") && normalized.includes("delovni nalog");
   const wantsWorkOrder = normalized.includes("delovni nalog") || normalized.includes("ustvari") || normalized.includes("naredi");
   const wantsInventory = normalized.includes("zalogo") || normalized.includes("zalogi") || normalized.includes("dovolj delov");
 
@@ -417,9 +677,21 @@ export async function interpretCommand(command) {
 
   const deadline = normalized.includes("petka") ? nextFriday() : new Date(Date.now() + 7 * DAY_MS);
 
+  if (wantsBasicWorkOrder) {
+    return {
+      intent: "create_work_order_only",
+      args: {
+        customerName: customerMatch?.[1] || "AluTech",
+        productName: product.name,
+        quantity: Number(quantityMatch[1]),
+        requestedDeadline: deadline
+      }
+    };
+  }
+
   if (wantsWorkOrder) {
     return {
-      intent: "process_customer_order",
+      intent: "process_work_order",
       args: {
         customerName: customerMatch?.[1] || "AluTech",
         productName: product.name,
@@ -431,7 +703,7 @@ export async function interpretCommand(command) {
 
   if (wantsInventory) {
     return {
-      intent: "check_inventory",
+      intent: "check_product_availability",
       args: {
         productName: product.name,
         quantity: Number(quantityMatch[1])

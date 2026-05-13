@@ -48,7 +48,7 @@ export function InlineStatusMenu({ label, value, options, onChange, disabled }) 
   return (
     <div className="inlineControl" ref={ref}>
       <span>{label}</span>
-      <button type="button" className="inlineControlButton" onClick={() => setOpen((current) => !current)} disabled={disabled}>
+      <button type="button" className={`inlineControlButton statusValue ${value}`} onClick={() => setOpen((current) => !current)} disabled={disabled}>
         {statusLabel(value)}
         <ChevronDown size={16} />
       </button>

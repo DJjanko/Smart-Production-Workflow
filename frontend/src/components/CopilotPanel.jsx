@@ -1,4 +1,4 @@
-import { Bot, CalendarClock, CheckCircle2, ChevronRight, Play } from "lucide-react";
+import { Bot, CalendarClock, CheckCircle2, ChevronRight, Play, XCircle } from "lucide-react";
 import { EmptyState } from "./EmptyState.jsx";
 import { label } from "../utils/i18n.js";
 
@@ -11,6 +11,8 @@ export function CopilotPanel({
   setCommand,
   setProvider,
   onRunCommand,
+  onAcceptPending,
+  onDeclinePending,
   onHide
 }) {
   const providerName = provider === "openai" ? "OpenAI API" : "Ollama";
@@ -61,6 +63,24 @@ export function CopilotPanel({
                 <div>
                   <strong>{result.result.workOrder.code}</strong>
                   <span>{result.result.phases.length} {label("phasesShort")} - {result.result.workOrder.inventoryStatus}</span>
+                </div>
+              </div>
+            )}
+            {result.pendingAction?.status === "pending" && (
+              <div className="confirmationCard">
+                <div>
+                  <strong>Confirmation required</strong>
+                  <span>{result.pendingAction.previewMessage || result.result?.message}</span>
+                </div>
+                <div className="confirmationActions">
+                  <button type="button" className="primary acceptButton" onClick={() => onAcceptPending?.(result.pendingAction.id)} disabled={loading}>
+                    <CheckCircle2 size={16} />
+                    Accept
+                  </button>
+                  <button type="button" className="iconText declineButton" onClick={() => onDeclinePending?.(result.pendingAction.id)} disabled={loading}>
+                    <XCircle size={16} />
+                    Decline
+                  </button>
                 </div>
               </div>
             )}

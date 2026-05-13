@@ -94,7 +94,7 @@ function App() {
   const [supplyAlerts, setSupplyAlerts] = useState([]);
   const [highlightLowStock, setHighlightLowStock] = useState(false);
   const [command, setCommand] = useState(demoCommand);
-  const [provider, setProvider] = useState("openai");
+  const [provider, setProvider] = useState("ollama");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -172,6 +172,36 @@ function App() {
     }
   }
 
+  async function acceptPendingAction(id) {
+    setAssistantLoading(true);
+
+    try {
+      const data = await api.acceptPendingAction(id, session?.token);
+      setResult(data);
+      await loadActivities();
+    } catch (err) {
+      setResult({ interpreted: { intent: "error", message: err.message } });
+      await loadActivities().catch(() => {});
+    } finally {
+      setAssistantLoading(false);
+    }
+  }
+
+  async function declinePendingAction(id) {
+    setAssistantLoading(true);
+
+    try {
+      const data = await api.declinePendingAction(id, session?.token);
+      setResult(data);
+      await loadActivities();
+    } catch (err) {
+      setResult({ interpreted: { intent: "error", message: err.message } });
+      await loadActivities().catch(() => {});
+    } finally {
+      setAssistantLoading(false);
+    }
+  }
+
   if (!session) {
     return (
       <LandingPage
@@ -234,6 +264,8 @@ function App() {
           setCommand={setCommand}
           setProvider={setProvider}
           onRunCommand={runAssistantCommand}
+          onAcceptPending={acceptPendingAction}
+          onDeclinePending={declinePendingAction}
           onHide={() => setAssistantOpen(false)}
         />
       ) : (

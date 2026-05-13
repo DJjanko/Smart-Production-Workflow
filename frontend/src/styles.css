@@ -265,6 +265,13 @@ h2 {
   font-weight: 700;
 }
 
+.approveButton {
+  min-height: 38px;
+  color: #ffffff;
+  background: #1f7b52;
+  white-space: nowrap;
+}
+
 .primary:disabled,
 .iconText:disabled {
   opacity: 0.6;
@@ -338,7 +345,7 @@ select:focus {
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -743,6 +750,52 @@ select:focus {
 .entityItem.supplyAlertItem {
   outline: 2px solid rgba(147, 97, 22, 0.24);
   outline-offset: -2px;
+}
+
+.entityItem.status-planned,
+.entityItem.status-planned:nth-child(even),
+.row.status-planned {
+  border-color: #b8dbe5;
+  background: #eef8fb;
+  box-shadow: inset 4px 0 0 #176b87;
+}
+
+.entityItem.status-in_progress,
+.entityItem.status-in_progress:nth-child(even),
+.row.status-in_progress {
+  border-color: #f0d9a8;
+  background: #fff8e8;
+  box-shadow: inset 4px 0 0 #936116;
+}
+
+.entityItem.status-completed,
+.entityItem.status-completed:nth-child(even),
+.row.status-completed {
+  border-color: #d3c8ec;
+  background: #f2eefb;
+  box-shadow: inset 4px 0 0 #6f5aa8;
+}
+
+.entityItem.status-sold,
+.entityItem.status-sold:nth-child(even),
+.row.status-sold {
+  border-color: #9fd4b8;
+  background: #e8f7ee;
+  box-shadow: inset 4px 0 0 #1f7b52;
+}
+
+.entityItem.awaitingPayment,
+.row.awaitingPayment {
+  outline: 2px solid rgba(31, 123, 82, 0.26);
+  outline-offset: -2px;
+}
+
+.entityItem.status-delayed,
+.entityItem.status-delayed:nth-child(even),
+.row.status-delayed {
+  border-color: #efb8bc;
+  background: #fff1f2;
+  box-shadow: inset 4px 0 0 #a13b3f;
 }
 
 .supplyAlertBadge {
@@ -1500,8 +1553,15 @@ select:focus {
 
 .status.planned { color: #176b87; background: #d9eef4; }
 .status.in_progress { color: #936116; background: #fff1d8; }
-.status.completed { color: #1f7b52; background: #dff3e8; }
+.status.completed { color: #5b4b8a; background: #ece8f8; }
+.status.sold { color: #ffffff; background: #1f7b52; }
 .status.delayed { color: #a13b3f; background: #f8dddd; }
+
+.inlineControlButton.statusValue.planned { border-color: #b8dbe5; color: #176b87; background: #eef8fb; }
+.inlineControlButton.statusValue.in_progress { border-color: #f0d9a8; color: #936116; background: #fff8e8; }
+.inlineControlButton.statusValue.completed { border-color: #d3c8ec; color: #5b4b8a; background: #f2eefb; }
+.inlineControlButton.statusValue.sold { border-color: #9fd4b8; color: #145436; background: #e8f7ee; }
+.inlineControlButton.statusValue.delayed { border-color: #efb8bc; color: #a13b3f; background: #fff1f2; }
 
 .inventoryList,
 .timelineList,
@@ -2329,6 +2389,71 @@ button.workloadItem {
   border-color: #9fd4b8;
   color: #145436;
   background: #e8f7ee;
+}
+
+.approvalPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #9fd4b8;
+  border-radius: 8px;
+}
+
+.approvalPanel > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.approvalPanel span {
+  color: #476358;
+  font-size: 0.82rem;
+}
+
+.confirmationCard {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #f0d9a8;
+  border-radius: 8px;
+  color: #1b2a31;
+  background: #fff8e8;
+}
+
+.confirmationCard > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.confirmationCard span {
+  color: #5a6870;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.confirmationActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.confirmationActions button {
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.acceptButton {
+  background: #1f7b52;
+}
+
+.declineButton {
+  color: #a13b3f;
+  border-color: #efb8bc;
+  background: #fff1f2;
 }
 
 .copilot .sectionHeader h2 {

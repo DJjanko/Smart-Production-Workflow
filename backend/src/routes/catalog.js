@@ -10,6 +10,7 @@ import {
   createSupplyAlert,
   createUser,
   createWorkOrderPhase,
+  approveWorkOrder,
   deleteEmployee,
   deleteInventory,
   deleteOrder,
@@ -68,6 +69,7 @@ catalogRouter.route("/orders").get(getOrders).post(adminOnly, createOrder);
 catalogRouter.route("/orders/:id").put(adminOnly, updateOrder).delete(adminOnly, deleteOrder);
 
 catalogRouter.route("/work-orders").get(getWorkOrders).post(adminOnly, createManualWorkOrder);
+catalogRouter.route("/work-orders/:id/approve").put(adminOnly, approveWorkOrder);
 catalogRouter.route("/work-orders/:id").put(adminOnly, updateWorkOrder).delete(adminOnly, deleteWorkOrder);
 
 catalogRouter.route("/work-order-phases").get(getWorkOrderPhases).post(adminOnly, createWorkOrderPhase);

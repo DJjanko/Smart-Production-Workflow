@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, Hammer, Pencil, Save, UserRoundCheck, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, ClipboardList, Hammer, Pencil, Save, UserRoundCheck, X } from "lucide-react";
 import { CustomSelect } from "./CustomSelect.jsx";
 import { EmptyState } from "./EmptyState.jsx";
 import { StatusBadge } from "./StatusBadge.jsx";
@@ -29,6 +29,7 @@ export function WorkOrderDetailModal({
   setEditingPhase,
   savePhaseEdit,
   loading,
+  onApprovePayment,
   onClose
 }) {
   if (!order) return null;
@@ -77,6 +78,19 @@ export function WorkOrderDetailModal({
             <span>{description}</span>
           </div>
         </section>
+
+        {isAdmin && order.status === "completed" && order.fulfillmentStatus === "awaiting_payment" && (
+          <div className="successAlert approvalPanel">
+            <div>
+              <strong>{label("awaitingPayment")}</strong>
+              <span>{description}</span>
+            </div>
+            <button type="button" className="primary approveButton" onClick={() => onApprovePayment?.(order._id)} disabled={loading}>
+              <CheckCircle2 size={17} />
+              {label("approvePayment")}
+            </button>
+          </div>
+        )}
 
         <section className="detailSection">
           <div className="sectionHeader compact">

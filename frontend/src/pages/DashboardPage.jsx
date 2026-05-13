@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bot, ChevronDown, Filter, Hammer, PackageCheck, Search, UsersRound } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, ChevronDown, Filter, Hammer, PackageCheck, Search, ShoppingCart, UsersRound } from "lucide-react";
 import { api } from "../api.js";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { InventoryPanel } from "../components/InventoryPanel.jsx";
@@ -140,6 +140,7 @@ export function DashboardPage({ session }) {
   const dashboardWorkOrders = dashboard?.workOrders || [];
   const dashboardPhases = dashboard?.phases || [];
   const activities = dashboard?.activities || [];
+  const fulfillmentStats = dashboard?.fulfillmentStats || { completedProducts: 0, issuedProducts: 0 };
   const myPhases = useMemo(() => phases.filter((phase) => phase.assignedToName === session?.user?.name), [phases, session?.user?.name]);
   const myWorkOrderIds = useMemo(() => new Set(myPhases.map((phase) => String(phase.workOrderId?._id || phase.workOrderId))), [myPhases]);
   const myWorkOrders = useMemo(() => workOrders.filter((order) => myWorkOrderIds.has(String(order._id))), [workOrders, myWorkOrderIds]);
@@ -304,6 +305,8 @@ export function DashboardPage({ session }) {
         <MetricCard icon={<Hammer />} label={label("activeOrders")} value={dashboard?.activeWorkOrders ?? "-"} tone="blue" />
         <MetricCard icon={<PackageCheck />} label={label("lowStock")} value={dashboard?.lowStock?.length ?? "-"} tone="amber" />
         <MetricCard icon={<UsersRound />} label={label("employees")} value={employees.length || "-"} tone="green" />
+        <MetricCard icon={<CheckCircle2 />} label={label("completedProducts")} value={fulfillmentStats.completedProducts ?? 0} tone="blue" />
+        <MetricCard icon={<ShoppingCart />} label={label("issuedProducts")} value={fulfillmentStats.issuedProducts ?? 0} tone="green" />
         <MetricCard icon={<Bot />} label={label("llmActions")} value={activities.length || "-"} tone="red" />
       </section>
 

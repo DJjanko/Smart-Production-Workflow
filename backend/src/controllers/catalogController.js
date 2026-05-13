@@ -9,7 +9,12 @@ import { SupplyAlert } from "../models/SupplyAlert.js";
 import { User } from "../models/User.js";
 import { WorkOrder } from "../models/WorkOrder.js";
 import { WorkOrderPhase } from "../models/WorkOrderPhase.js";
-import { processCustomerOrder, processCustomerOrderItems } from "../services/workflowService.js";
+import {
+  approveWorkOrderPayment,
+  completeWorkOrderForApproval,
+  processCustomerOrder,
+  processCustomerOrderItems
+} from "../services/workflowService.js";
 import bcrypt from "bcryptjs";
 
 function cleanNumber(value, fallback = 0) {
@@ -69,7 +74,10 @@ async function cleanOrderItemsPayload(items = []) {
     productName: productById.get(String(item.productId))?.name || item.productName || "Product",
     quantity: cleanNumber(item.quantity, 1),
     fromStock: cleanNumber(item.fromStock),
-    toProduce: cleanNumber(item.toProduce, cleanNumber(item.quantity, 1))
+    toProduce: cleanNumber(item.toProduce, cleanNumber(item.quantity, 1)),
+    issuedFromStock: cleanNumber(item.issuedFromStock),
+    issuedFromProduction: cleanNumber(item.issuedFromProduction),
+    issuedQuantity: cleanNumber(item.issuedQuantity)
   }));
 }
 
@@ -454,6 +462,9 @@ export async function createManualWorkOrder(req, res, next) {
 
 export async function updateWorkOrder(req, res, next) {
   try {
+    const previous = await WorkOrder.findById(req.params.id).lean();
+    if (!previous) return res.status(404).json({ message: "Work order not found." });
+
     const update = {
       status: req.body.status,
       startDate: req.body.startDate || undefined,
@@ -473,12 +484,62 @@ export async function updateWorkOrder(req, res, next) {
       { new: true, runValidators: true }
     );
     if (!workOrder) return res.status(404).json({ message: "Work order not found." });
-    if (req.body.customerName?.trim()) {
-      await Order.findByIdAndUpdate(workOrder.orderId, {
-        customerName: req.body.customerName,
-        ...(Array.isArray(req.body.items) ? { items: workOrder.items.map(({ productId, productName, quantity }) => ({ productId, productName, quantity })) } : {})
+
+    let responseWorkOrder = workOrder;
+    if (req.body.status === "completed" && !["awaiting_payment", "sold", "issued"].includes(previous.fulfillmentStatus)) {
+      responseWorkOrder = await completeWorkOrderForApproval(workOrder._id, {
+        actor: req.user?.name || "admin",
+        llmProvider: "mock",
+        rawInput: { source: "manual_status_update", workOrderId: workOrder._id }
+      });
+    } else if (req.body.status === "sold") {
+      responseWorkOrder = await approveWorkOrderPayment(workOrder._id, {
+        actor: req.user?.name || "admin",
+        llmProvider: "mock",
+        rawInput: { source: "manual_status_update", workOrderId: workOrder._id }
       });
     }
+
+    if (req.body.customerName?.trim()) {
+      await Order.findByIdAndUpdate(responseWorkOrder.orderId, {
+        customerName: req.body.customerName,
+        ...(Array.isArray(req.body.items) ? {
+          items: responseWorkOrder.items.map(({
+            productId,
+            productName,
+            quantity,
+            fromStock,
+            toProduce,
+            issuedFromStock,
+            issuedFromProduction,
+            issuedQuantity
+          }) => ({
+            productId,
+            productName,
+            quantity,
+            fromStock,
+            toProduce,
+            issuedFromStock,
+            issuedFromProduction,
+            issuedQuantity
+          }))
+        } : {})
+      });
+    }
+    res.json(responseWorkOrder);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function approveWorkOrder(req, res, next) {
+  try {
+    const workOrder = await approveWorkOrderPayment(req.params.id, {
+      actor: req.user?.name || "admin",
+      llmProvider: "mock",
+      rawInput: { source: "payment_approval_button", workOrderId: req.params.id }
+    });
+
     res.json(workOrder);
   } catch (error) {
     next(error);
@@ -587,6 +648,27 @@ export async function updateWorkOrderPhase(req, res, next) {
         )
       )
     );
+
+    if (phase.status === "completed") {
+      const activePhaseCount = await WorkOrderPhase.countDocuments({
+        workOrderId: phase.workOrderId,
+        status: { $ne: "completed" }
+      });
+
+      if (activePhaseCount === 0) {
+        await completeWorkOrderForApproval(phase.workOrderId, {
+          actor: req.user?.name || "admin",
+          llmProvider: "mock",
+          rawInput: { source: "all_phases_completed", phaseId: phase._id }
+        });
+      }
+    } else if (phase.status === "in_progress") {
+      await WorkOrder.updateOne(
+        { _id: phase.workOrderId, status: { $nin: ["completed", "delayed"] } },
+        { status: "in_progress" }
+      );
+    }
+
     res.json(phase);
   } catch (error) {
     next(error);
