@@ -16,6 +16,7 @@ const flexibleInputSchema = z.object({
   customerName: z.string().optional(),
   quantity: z.union([z.number(), z.string()]).optional(),
   requestedDeadline: z.string().optional(),
+  forceProduction: z.union([z.boolean(), z.string()]).optional(),
   search: z.string().optional(),
   query: z.string().optional(),
   status: z.string().optional(),

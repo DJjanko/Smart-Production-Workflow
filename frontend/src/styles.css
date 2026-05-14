@@ -336,6 +336,10 @@ textarea {
   line-height: 1.45;
 }
 
+textarea::placeholder {
+  color: #7c8b93;
+}
+
 input:focus,
 textarea:focus,
 select:focus {
@@ -462,6 +466,16 @@ select:focus {
   color: #5a6870;
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.readonlyStatusField {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 9px 11px;
+  border: 1px solid #d6dee1;
+  border-radius: 7px;
+  background: #f7f9fa;
 }
 
 .inlineControlButton {
@@ -782,6 +796,18 @@ select:focus {
   border-color: #9fd4b8;
   background: #e8f7ee;
   box-shadow: inset 4px 0 0 #1f7b52;
+}
+
+.entityItem.status-draft,
+.entityItem.status-draft:nth-child(even) {
+  border-color: #d3dde3;
+  background: #f7f9fa;
+  box-shadow: inset 4px 0 0 #8a99a3;
+}
+
+.entityItem.draftOrderItem {
+  outline: 2px dashed rgba(114, 129, 138, 0.24);
+  outline-offset: -4px;
 }
 
 .entityItem.awaitingPayment,
@@ -1556,17 +1582,20 @@ select:focus {
 .status.completed { color: #5b4b8a; background: #ece8f8; }
 .status.sold { color: #ffffff; background: #1f7b52; }
 .status.delayed { color: #a13b3f; background: #f8dddd; }
+.status.draft { color: #5a6870; background: #edf2f5; }
 
 .inlineControlButton.statusValue.planned { border-color: #b8dbe5; color: #176b87; background: #eef8fb; }
 .inlineControlButton.statusValue.in_progress { border-color: #f0d9a8; color: #936116; background: #fff8e8; }
 .inlineControlButton.statusValue.completed { border-color: #d3c8ec; color: #5b4b8a; background: #f2eefb; }
 .inlineControlButton.statusValue.sold { border-color: #9fd4b8; color: #145436; background: #e8f7ee; }
 .inlineControlButton.statusValue.delayed { border-color: #efb8bc; color: #a13b3f; background: #fff1f2; }
+.inlineControlButton.statusValue.draft { border-color: #d3dde3; color: #5a6870; background: #f7f9fa; }
 
 .inventoryList,
 .timelineList,
 .workloadList,
 .activityPanel,
+.assistantThread,
 .resultContent {
   display: grid;
   gap: 9px;
@@ -2174,7 +2203,7 @@ button.workloadItem {
   z-index: 1;
   width: 100%;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden;
   border-radius: 0;
   border: 0;
   background: rgba(7, 5, 15, 0.68);
@@ -2182,8 +2211,8 @@ button.workloadItem {
   -webkit-backdrop-filter: blur(14px);
   color: #ffffff;
   padding: 22px 18px;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   gap: 16px;
   min-width: 0;
   animation: copilotSlideIn 220ms ease-out;
@@ -2484,6 +2513,13 @@ button.workloadItem {
   gap: 10px;
 }
 
+.commandTextarea {
+  min-height: calc((1.45em * 2) + 22px);
+  max-height: calc((1.45em * 5) + 22px);
+  overflow-y: auto;
+  resize: none;
+}
+
 .segmented {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2509,26 +2545,133 @@ button.workloadItem {
   width: 100%;
 }
 
-.resultPanel,
+.chatPanel,
 .activityPanel {
   min-width: 0;
 }
 
-.resultContent p {
+.chatPanel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 9px;
+}
+
+.assistantThread {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 3px;
+  scrollbar-gutter: stable;
+}
+
+.assistantThreadInner {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.assistantThreadInner::before {
+  content: "";
+  flex: 1 0 auto;
+}
+
+.chatBubble p {
   color: #33434a;
   line-height: 1.45;
 }
 
 .chatBubble {
   position: relative;
+  display: grid;
+  align-self: end;
+  gap: 9px;
   padding: 12px;
   border-radius: 8px;
   animation: chatMessageIn 260ms ease-out;
 }
 
+.userBubble {
+  margin-left: 28px;
+  color: #ffffff;
+  background: rgba(23, 107, 135, 0.92);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.userBubble p {
+  color: #ffffff;
+}
+
 .assistantBubble {
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.12);
+}
+
+.messageMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.messageMeta strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #176b87;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.messageMeta span {
+  min-width: 0;
+  color: #4d626b;
+  font-size: 0.76rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistantBubble .messageMeta strong {
+  color: #172026;
+  background: #d9eef4;
+}
+
+.userBubble .messageMeta span {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.userBubble .messageMeta strong {
+  color: #176b87;
+  background: #ffffff;
+}
+
+.assistantResultList {
+  display: grid;
+  gap: 7px;
+}
+
+.assistantResultItem {
+  display: grid;
+  gap: 2px;
+  padding: 9px;
+  border: 1px solid #d9e3e7;
+  border-radius: 7px;
+  background: #f7f9f9;
+}
+
+.assistantResultItem strong {
+  color: #172026;
+}
+
+.assistantResultItem span {
+  color: #5a6870;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .copilotTyping {
@@ -2609,6 +2752,278 @@ pre {
 .activityItem {
   display: grid;
   gap: 2px;
+}
+
+.activityToggleRow {
+  display: grid;
+}
+
+.activityToggleButton {
+  min-height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 9px 11px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 850;
+}
+
+.activityToggleButton:hover {
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.activityToggleButton span {
+  min-width: 26px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #172026;
+  background: #ffffff;
+  font-size: 0.78rem;
+}
+
+.activityPanel {
+  max-height: min(48vh, 520px);
+  overflow: auto;
+}
+
+.activityModalOverlay {
+  z-index: 95;
+}
+
+.activityModal {
+  width: min(1180px, calc(100vw - 48px));
+  max-height: min(88vh, 860px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  color: #172026;
+  background: #ffffff;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+}
+
+.activityModal .modalHeader span {
+  color: #72818a;
+  font-size: 0.86rem;
+}
+
+.activityModalBody {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.36fr) minmax(0, 0.64fr);
+  gap: 14px;
+}
+
+.activityModalList,
+.activityModal .activityDetails {
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.activityModalList {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 12px;
+}
+
+.activityFilters {
+  display: grid;
+  grid-template-columns: minmax(88px, 0.55fr) minmax(132px, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.activityFilters label {
+  min-width: 0;
+}
+
+.activityFilters select,
+.activityFilters input[type="date"] {
+  min-height: 36px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.activityMineFilter {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #34444b;
+}
+
+.activityMineFilter input {
+  width: 16px;
+  height: 16px;
+  accent-color: #176b87;
+}
+
+.clearActivityDate {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.activityModalList .sectionHeader h2 {
+  color: #172026;
+}
+
+.activityModalList .activityItem {
+  width: 100%;
+  border: 1px solid #d9e3e7;
+  color: #172026;
+  background: #eef3f5;
+  text-align: left;
+}
+
+.activityModalList .activityItem.selected {
+  border-color: #176b87;
+  background: #e7f4f8;
+  box-shadow: inset 4px 0 0 #176b87;
+  outline: none;
+}
+
+.activityModal .activityDetails {
+  align-content: start;
+  padding: 14px;
+  color: #172026;
+  background: #ffffff;
+}
+
+.activityModal .activityDetailsHeader span,
+.activityModal .activityDetails label {
+  color: #5a6870;
+}
+
+.activityModal .activityDetails pre {
+  max-height: 270px;
+  border: 1px solid #26343b;
+}
+
+.copilot .activityItem {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+
+.copilot .activityItem.selected {
+  outline: 2px solid rgba(255, 255, 255, 0.34);
+  outline-offset: -2px;
+}
+
+.activityDetails {
+  display: grid;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.activityDetailsHeader {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.activityDetailsHeader > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.activityDetailsHeader span,
+.activityDetails label {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.78rem;
+}
+
+.activityUserCommand {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid #b8dbe5;
+  border-radius: 7px;
+  background: #eef8fb;
+}
+
+.activityUserCommand span {
+  color: #5a6870;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.activityUserCommand strong {
+  color: #172026;
+  line-height: 1.4;
+}
+
+.activityDisplayBlock {
+  display: grid;
+  gap: 8px;
+}
+
+.activityDisplayBlock > span {
+  color: #5a6870;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.activityActualDisplay {
+  display: grid;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid #d8e1e4;
+  border-radius: 8px;
+  background: #fbfcfc;
+}
+
+.activityActualDisplay p {
+  color: #33434a;
+  line-height: 1.45;
+}
+
+.activityActualDisplay > span {
+  color: #5a6870;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.activityDetails pre {
+  max-height: 170px;
+  margin: 0;
+}
+
+.smallIconButton {
+  width: 30px;
+  height: 30px;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.activityModal .smallIconButton {
+  border-color: #d6dee1;
+  color: #1b2a31;
+  background: #ffffff;
 }
 
 .empty {

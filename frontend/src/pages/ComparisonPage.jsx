@@ -4,15 +4,15 @@ import { api } from "../api.js";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { label } from "../utils/i18n.js";
 
-export function ComparisonPage() {
+export function ComparisonPage({ session, dataRefreshKey }) {
   const [activities, setActivities] = useState([]);
   const [search, setSearch] = useState("");
   const [provider, setProvider] = useState("all");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.activityLog().then(setActivities).catch((err) => setError(err.message));
-  }, []);
+    api.activityLog({ limit: 100 }, session?.token).then(setActivities).catch((err) => setError(err.message));
+  }, [session?.token, dataRefreshKey]);
 
   const providerStats = useMemo(() => {
     const groups = new Map();

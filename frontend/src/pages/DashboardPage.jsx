@@ -101,7 +101,7 @@ function WorkerPhaseStatusMenu({ value, onChange }) {
   );
 }
 
-export function DashboardPage({ session }) {
+export function DashboardPage({ session, dataRefreshKey }) {
   const [dashboard, setDashboard] = useState(null);
   const [workOrders, setWorkOrders] = useState([]);
   const [phases, setPhases] = useState([]);
@@ -132,7 +132,7 @@ export function DashboardPage({ session }) {
     if (session) {
       loadDashboard().catch((err) => setError(err.message));
     }
-  }, [session]);
+  }, [session, dataRefreshKey]);
 
   const timeline = useMemo(() => dashboard?.phases || [], [dashboard]);
   const inventory = dashboard?.inventory || [];

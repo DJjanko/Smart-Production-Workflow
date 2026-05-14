@@ -461,7 +461,7 @@ function PhaseEditor({
   );
 }
 
-export function ProductsPage({ session }) {
+export function ProductsPage({ session, dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [products, setProducts] = useState([]);
   const [parts, setParts] = useState([]);
@@ -488,7 +488,7 @@ export function ProductsPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();

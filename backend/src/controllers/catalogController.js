@@ -12,6 +12,7 @@ import { WorkOrderPhase } from "../models/WorkOrderPhase.js";
 import {
   approveWorkOrderPayment,
   completeWorkOrderForApproval,
+  processExistingOrder,
   processCustomerOrder,
   processCustomerOrderItems
 } from "../services/workflowService.js";
@@ -345,7 +346,29 @@ export async function deleteEmployee(req, res, next) {
 
 export async function getOrders(req, res, next) {
   try {
-    res.json(await Order.find().populate("items.productId").sort({ createdAt: -1 }));
+    const [orders, workOrders] = await Promise.all([
+      Order.find().populate("items.productId").sort({ createdAt: -1 }).lean(),
+      WorkOrder.find().select("code orderId").lean()
+    ]);
+    const workOrderByOrderId = new Map(workOrders.map((workOrder) => [String(workOrder.orderId), workOrder]));
+    const unlinkedOrderIds = orders
+      .filter((order) => !workOrderByOrderId.has(String(order._id)) && order.status !== "draft")
+      .map((order) => order._id);
+
+    if (unlinkedOrderIds.length) {
+      await Order.updateMany({ _id: { $in: unlinkedOrderIds } }, { status: "draft" });
+    }
+
+    res.json(orders.map((order) => {
+      const linkedWorkOrder = workOrderByOrderId.get(String(order._id));
+      return {
+        ...order,
+        status: linkedWorkOrder ? order.status : "draft",
+        hasWorkOrder: Boolean(linkedWorkOrder),
+        workOrderId: linkedWorkOrder?._id || null,
+        workOrderCode: linkedWorkOrder?.code || null
+      };
+    }));
   } catch (error) {
     next(error);
   }
@@ -361,7 +384,7 @@ export async function createOrder(req, res, next) {
       customerName: req.body.customerName,
       items: cleanItems.map(({ productId, productName, quantity }) => ({ productId, productName, quantity })),
       requestedDeadline: req.body.requestedDeadline || undefined,
-      status: req.body.status || "confirmed"
+      status: "draft"
     });
     res.status(201).json(order);
   } catch (error) {
@@ -372,10 +395,11 @@ export async function createOrder(req, res, next) {
 export async function updateOrder(req, res, next) {
   try {
     if (!req.body.customerName?.trim()) return sendRequired(res, "customerName");
+    const linkedWorkOrder = await WorkOrder.exists({ orderId: req.params.id });
     const update = {
       customerName: req.body.customerName,
       requestedDeadline: req.body.requestedDeadline || undefined,
-      status: req.body.status || "confirmed"
+      status: linkedWorkOrder ? req.body.status || "confirmed" : "draft"
     };
 
     if (Array.isArray(req.body.items)) {
@@ -392,6 +416,24 @@ export async function updateOrder(req, res, next) {
     if (!order) return res.status(404).json({ message: "Order not found." });
     res.json(order);
   } catch (error) {
+    next(error);
+  }
+}
+
+export async function convertOrderToWorkOrder(req, res, next) {
+  try {
+    const result = await processExistingOrder({
+      orderId: req.params.id,
+      actor: req.user?.name || "admin",
+      llmProvider: "mock",
+      rawInput: { source: "order_conversion_button", orderId: req.params.id }
+    });
+
+    res.status(201).json(result);
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
     next(error);
   }
 }
@@ -798,7 +840,24 @@ export async function deleteUser(req, res, next) {
 
 export async function getActivityLog(req, res, next) {
   try {
-    res.json(await ActivityLog.find().sort({ createdAt: -1 }).limit(30));
+    const limit = [30, 50, 100].includes(Number(req.query.limit)) ? Number(req.query.limit) : 30;
+    const filters = {};
+
+    if (req.query.mine === "true" && req.user?.name) {
+      filters.actor = req.user.name;
+    }
+
+    if (req.query.date) {
+      const start = new Date(`${req.query.date}T00:00:00`);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 1);
+
+      if (!Number.isNaN(start.getTime())) {
+        filters.createdAt = { $gte: start, $lt: end };
+      }
+    }
+
+    res.json(await ActivityLog.find(filters).sort({ createdAt: -1 }).limit(limit));
   } catch (error) {
     next(error);
   }

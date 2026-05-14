@@ -60,7 +60,7 @@ function isEmployeePhase(employee, phase, user) {
   );
 }
 
-export function TimelinePage({ session }) {
+export function TimelinePage({ session, dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [workOrders, setWorkOrders] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -87,7 +87,7 @@ export function TimelinePage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredEmployees = useMemo(() => {
     const query = employeeSearch.trim().toLowerCase();

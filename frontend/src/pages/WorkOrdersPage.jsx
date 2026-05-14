@@ -9,7 +9,7 @@ import { StatusFilterMenu } from "../components/StatusFilterMenu.jsx";
 import { WorkOrderDetailModal } from "../components/WorkOrderDetailModal.jsx";
 import { WorkOrdersTimeline } from "../components/WorkOrdersTimeline.jsx";
 import { formatDate } from "../utils/date.js";
-import { label } from "../utils/i18n.js";
+import { label, statusLabel } from "../utils/i18n.js";
 
 const emptyManual = { customerName: "", requestedDeadline: "", items: [] };
 const emptyItem = { productId: "", quantity: 1 };
@@ -26,7 +26,7 @@ function workOrderToForm(order) {
   };
 }
 
-export function WorkOrdersPage({ session }) {
+export function WorkOrdersPage({ session, dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [workOrders, setWorkOrders] = useState([]);
   const [phases, setPhases] = useState([]);
@@ -65,7 +65,7 @@ export function WorkOrdersPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredWorkOrders = useMemo(() => {
     const query = workOrderSearch.trim().toLowerCase();
@@ -402,7 +402,7 @@ export function WorkOrdersPage({ session }) {
                       <div>
                         <strong>{order.code}</strong>
                         <span>{order.items?.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}</span>
-                        <p>{label("deadline")}: {formatDate(order.dueDate)} / {label("inventory")}: {order.inventoryStatus}</p>
+                        <p>{label("deadline")}: {formatDate(order.dueDate)} / {label("inventory")}: {statusLabel(order.inventoryStatus)}</p>
                       </div>
                       {!isAdmin && <StatusBadge value={order.status} />}
                       {isAdmin && <div className="inlineListControls" onClick={(event) => event.stopPropagation()}>

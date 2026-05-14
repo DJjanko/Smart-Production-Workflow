@@ -16,7 +16,7 @@ function employeeToForm(employee) {
   };
 }
 
-export function EmployeesPage({ session }) {
+export function EmployeesPage({ session, dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [employees, setEmployees] = useState([]);
   const [phases, setPhases] = useState([]);
@@ -36,7 +36,7 @@ export function EmployeesPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredEmployees = useMemo(() => {
     const query = search.trim().toLowerCase();

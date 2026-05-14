@@ -66,7 +66,7 @@ export async function runCommand(req, res, next) {
     }
 
     await ActivityLog.create({
-      actor: "admin",
+      actor: req.user.name || "admin",
       action: "needs_clarification",
       llmProvider: provider,
       mcpTool: null,

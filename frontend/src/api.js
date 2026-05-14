@@ -19,6 +19,17 @@ async function request(path, options = {}) {
   return data;
 }
 
+function toQuery(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      query.set(key, String(value));
+    }
+  });
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
 export const api = {
   login: (body) => request("/auth/login", { method: "POST", body }),
   dashboard: () => request("/dashboard"),
@@ -45,6 +56,7 @@ export const api = {
   orders: () => request("/orders"),
   createOrder: (body, token) => request("/orders", { method: "POST", body, token }),
   updateOrder: (id, body, token) => request(`/orders/${id}`, { method: "PUT", body, token }),
+  convertOrderToWorkOrder: (id, token) => request(`/orders/${id}/create-work-order`, { method: "POST", token }),
   deleteOrder: (id, token) => request(`/orders/${id}`, { method: "DELETE", token }),
   workOrders: () => request("/work-orders"),
   createWorkOrder: (body, token) => request("/work-orders", { method: "POST", body, token }),
@@ -63,7 +75,7 @@ export const api = {
   supplyAlerts: (token) => request("/supply-alerts", { token }),
   createSupplyAlert: (body, token) => request("/supply-alerts", { method: "POST", body, token }),
   resolveSupplyAlert: (id, token) => request(`/supply-alerts/${id}/resolve`, { method: "PUT", token }),
-  activityLog: () => request("/activity-log"),
+  activityLog: (params, token) => request(`/activity-log${toQuery(params)}`, { token }),
   runCommand: (body, token) => request("/ai/commands", { method: "POST", body, token }),
   pendingActions: (token) => request("/ai/pending-actions", { token }),
   acceptPendingAction: (id, token) => request(`/ai/pending-actions/${id}/accept`, { method: "PUT", token }),

@@ -174,6 +174,15 @@ async function reserveFinishedProducts(product, quantity) {
   return fromStock;
 }
 
+async function releaseReservedFinishedProducts(productId, quantity) {
+  if (!productId || quantity <= 0) return;
+
+  await ProductInventory.updateOne(
+    { productId },
+    { $inc: { reservedQuantity: -quantity } }
+  );
+}
+
 export async function completeWorkOrderForApproval(workOrderId, { actor = "system", llmProvider = "mock", rawInput } = {}) {
   const started = Date.now();
   const workOrder = await WorkOrder.findById(workOrderId);
@@ -369,12 +378,25 @@ async function generateAndAssignPhases({ workOrder, product, quantity, startDate
       throw new Error(`No employee has skill "${templatePhase.requiredSkill}".`);
     }
 
+    const employeeWorkloadMinutes = (employee) =>
+      existingPhases
+        .filter((phase) => String(phase.assignedTo) === String(employee._id))
+        .reduce((sum, phase) => sum + Math.max(0, (new Date(phase.end).getTime() - new Date(phase.start).getTime()) / 60000), 0);
+    const freeCandidates = candidates.filter((employee) =>
+      availability.get(String(employee._id)).getTime() <= dependencyEnd.getTime()
+    );
+    const hasFreeCandidates = freeCandidates.length > 0;
+    const candidatePool = hasFreeCandidates ? freeCandidates : candidates;
     const chosen = candidates
+      .filter((employee) => candidatePool.some((candidate) => String(candidate._id) === String(employee._id)))
       .map((employee) => {
         const employeeStart = maxDate(availability.get(String(employee._id)), dependencyEnd);
-        return { employee, start: employeeStart };
+        return { employee, start: employeeStart, workloadMinutes: employeeWorkloadMinutes(employee) };
       })
-      .sort((a, b) => a.start.getTime() - b.start.getTime() || a.employee.activePhaseCount - b.employee.activePhaseCount)[0];
+      .sort((a, b) => hasFreeCandidates
+        ? a.workloadMinutes - b.workloadMinutes || a.employee.activePhaseCount - b.employee.activePhaseCount
+        : a.workloadMinutes - b.workloadMinutes || a.start.getTime() - b.start.getTime() || a.employee.activePhaseCount - b.employee.activePhaseCount
+      )[0];
 
     const durationMinutes = templatePhase.durationMinutes * quantity;
     const end = addMinutes(chosen.start, durationMinutes);
@@ -406,7 +428,155 @@ async function generateAndAssignPhases({ workOrder, product, quantity, startDate
   return phases;
 }
 
-export async function processCustomerOrder({ customerName, productName, quantity, requestedDeadline, actor = "admin", llmProvider = "mock", rawInput }) {
+export async function generateMissingWorkOrderPhases({ workOrderCode, actor = "admin", llmProvider = "mock", rawInput }) {
+  const started = Date.now();
+  const code = String(workOrderCode || "").trim().toUpperCase();
+  const workOrder = await WorkOrder.findOne({ code }).populate("orderId");
+
+  if (!workOrder) {
+    const error = new Error(`Delovni nalog ${code || ""} ni najden.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const sourceItems = workOrder.items?.length ? workOrder.items : workOrder.orderId?.items || [];
+  const cleanItems = sourceItems
+    .map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      quantity: Number(item.toProduce) > 0 ? Number(item.toProduce) : Number(item.quantity)
+    }))
+    .filter((item) => item.productId && Number.isFinite(item.quantity) && item.quantity > 0);
+
+  if (!cleanItems.length) {
+    const output = {
+      code: "NO_WORK_ORDER_PRODUCTS",
+      message: `${workOrder.code} nima izdelkov, zato faz ni mogoce ustvariti.`
+    };
+    await ActivityLog.create({
+      actor,
+      action: "generate_work_order_phases",
+      llmProvider,
+      mcpTool: "generate_work_order_phases",
+      input: rawInput || { workOrderCode },
+      output,
+      durationMs: Date.now() - started
+    });
+    return output;
+  }
+
+  const existingPhases = await WorkOrderPhase.find({ workOrderId: workOrder._id }).lean();
+  const products = await Product.find({ _id: { $in: cleanItems.map((item) => item.productId) } })
+    .populate("requiredParts.partId")
+    .lean();
+  const productById = new Map(products.map((product) => [String(product._id), product]));
+  const createdPhases = [];
+  const inventoryChecks = [];
+  const partOrders = [];
+  const updatedItems = [];
+
+  for (const item of cleanItems) {
+    const product = productById.get(String(item.productId));
+    if (!product) continue;
+
+    const missingPhaseTemplates = product.phases.filter((phase) =>
+      !existingPhases.some((existing) =>
+        String(existing.productId) === String(product._id) &&
+        normalize(existing.name) === normalize(phase.name)
+      )
+    );
+    if (!missingPhaseTemplates.length) {
+      updatedItems.push(item);
+      continue;
+    }
+
+    const previousItem = workOrder.items.find((candidate) => String(candidate.productId) === String(item.productId));
+    const previousFromStock = Number(previousItem?.fromStock) || 0;
+    await releaseReservedFinishedProducts(product._id, previousFromStock);
+
+    const inventoryCheck = await checkInventoryForProduct(product, item.quantity);
+    const partOrder = await autoOrderMissingParts(inventoryCheck);
+    await reserveInventory(product, item.quantity);
+    if (partOrder) {
+      partOrder.workOrderId = workOrder._id;
+      await partOrder.save();
+      partOrders.push(partOrder);
+    }
+    inventoryChecks.push({ productId: product._id, productName: product.name, quantity: item.quantity, inventoryCheck });
+
+    const phaseProduct = {
+      ...product,
+      phases: missingPhaseTemplates
+    };
+    const phases = await generateAndAssignPhases({
+      workOrder,
+      product: phaseProduct,
+      quantity: item.quantity,
+      startDate: new Date()
+    });
+    createdPhases.push(...phases);
+    updatedItems.push({
+      productId: product._id,
+      productName: product.name,
+      quantity: item.quantity,
+      fromStock: 0,
+      toProduce: item.quantity
+    });
+  }
+
+  if (createdPhases.length > 0) {
+    const itemByProductId = new Map(updatedItems.map((item) => [String(item.productId), item]));
+    workOrder.items = sourceItems.map((item) => {
+      const replacement = itemByProductId.get(String(item.productId));
+      return replacement || item;
+    });
+    workOrder.status = "planned";
+    workOrder.fulfillmentStatus = "open";
+    workOrder.completedAt = undefined;
+    workOrder.inventoryStatus = partOrders.length ? "replenished" : "available";
+    await workOrder.save();
+
+    await Order.findByIdAndUpdate(workOrder.orderId?._id || workOrder.orderId, {
+      status: "in_production",
+      items: workOrder.items.map(({ productId, productName, quantity, fromStock, toProduce }) => ({
+        productId,
+        productName,
+        quantity,
+        fromStock,
+        toProduce
+      }))
+    });
+  }
+
+  const output = {
+    workOrder,
+    phases: createdPhases,
+    inventoryCheck: inventoryChecks,
+    partOrders,
+    message: createdPhases.length
+      ? `${workOrder.code}: ustvarjenih in dodeljenih ${createdPhases.length} faz.`
+      : `${workOrder.code}: vse potrebne faze ze obstajajo.`
+  };
+
+  await ActivityLog.create({
+    actor,
+    action: "generate_work_order_phases",
+    llmProvider,
+    mcpTool: "generate_work_order_phases",
+    input: rawInput || { workOrderCode },
+    output: {
+      workOrderCode: workOrder.code,
+      phaseCount: createdPhases.length,
+      itemCount: cleanItems.length,
+      orderedParts: partOrders.flatMap((partOrder) => partOrder.parts || [])
+    },
+    durationMs: Date.now() - started
+  });
+
+  return output;
+}
+
+export async function processCustomerOrder({ customerName, productName, quantity, requestedDeadline, forceProduction = false, actor = "admin", llmProvider = "mock", rawInput }) {
   const started = Date.now();
   const product = await findProductByName(productName);
 
@@ -419,7 +589,7 @@ export async function processCustomerOrder({ customerName, productName, quantity
     throw new Error("Quantity must be a positive number.");
   }
 
-  const fromStock = await reserveFinishedProducts(product, parsedQuantity);
+  const fromStock = forceProduction ? 0 : await reserveFinishedProducts(product, parsedQuantity);
   const toProduce = Math.max(0, parsedQuantity - fromStock);
   const firstCheck = toProduce > 0 ? await checkInventoryForProduct(product, toProduce) : [];
   const partOrder = await autoOrderMissingParts(firstCheck);
@@ -453,7 +623,7 @@ export async function processCustomerOrder({ customerName, productName, quantity
     await completeWorkOrderForApproval(workOrder._id, {
       actor,
       llmProvider,
-      rawInput: { source: "finished_stock", customerName, productName, quantity, requestedDeadline }
+      rawInput: { source: "finished_stock", customerName, productName, quantity, requestedDeadline, forceProduction }
     });
   }
   const output = {
@@ -530,7 +700,7 @@ export async function createWorkOrderOnly({ customerName, productName, quantity,
     action: "create_work_order_only",
     llmProvider,
     mcpTool: "create_work_order_only",
-    input: rawInput || { customerName, productName, quantity, requestedDeadline },
+    input: rawInput || { customerName, productName, quantity, requestedDeadline, forceProduction },
     output: {
       workOrderCode: workOrder.code,
       phaseCount: 0,
@@ -643,6 +813,134 @@ export async function processCustomerOrderItems({ customerName, items, requested
     output: {
       workOrderCode: workOrder.code,
       itemCount: orderItems.length,
+      phaseCount: phases.length,
+      inventoryStatus,
+      finishedStockUsed: totalFromStock,
+      orderedParts: partOrders.flatMap((partOrder) => partOrder.parts || [])
+    },
+    durationMs: Date.now() - started
+  });
+
+  return output;
+}
+
+export async function processExistingOrder({ orderId, actor = "admin", llmProvider = "mock", rawInput }) {
+  const started = Date.now();
+  const order = await Order.findById(orderId).lean();
+
+  if (!order) {
+    const error = new Error("Order not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const existingWorkOrder = await WorkOrder.exists({ orderId: order._id });
+  if (existingWorkOrder) {
+    const error = new Error("Order is already linked to a work order.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const cleanItems = (order.items || [])
+    .map((item) => ({ productId: item.productId, quantity: Number(item.quantity) }))
+    .filter((item) => item.productId && Number.isFinite(item.quantity) && item.quantity > 0);
+
+  if (!cleanItems.length) {
+    const error = new Error("Order does not contain valid product items.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const products = await Product.find({ _id: { $in: cleanItems.map((item) => item.productId) } })
+    .populate("requiredParts.partId")
+    .lean();
+  const productById = new Map(products.map((product) => [String(product._id), product]));
+  const orderItems = [];
+  const workOrderItems = [];
+  const inventoryChecks = [];
+  const partOrders = [];
+  let totalToProduce = 0;
+  let totalFromStock = 0;
+
+  for (const item of cleanItems) {
+    const product = productById.get(String(item.productId));
+    if (!product) {
+      const error = new Error(`Product "${item.productId}" was not found.`);
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const fromStock = await reserveFinishedProducts(product, item.quantity);
+    const toProduce = Math.max(0, item.quantity - fromStock);
+    totalFromStock += fromStock;
+    totalToProduce += toProduce;
+    const inventoryCheck = toProduce > 0 ? await checkInventoryForProduct(product, toProduce) : [];
+    const partOrder = await autoOrderMissingParts(inventoryCheck);
+    await reserveInventory(product, toProduce);
+
+    orderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity, fromStock, toProduce });
+    workOrderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity, fromStock, toProduce });
+    inventoryChecks.push({ productId: product._id, productName: product.name, quantity: item.quantity, inventoryCheck });
+    if (partOrder) partOrders.push(partOrder);
+  }
+
+  const startDate = new Date();
+  const inventoryStatus = partOrders.length ? "replenished" : "available";
+  const workOrder = await WorkOrder.create({
+    code: await nextWorkOrderCode(),
+    orderId: order._id,
+    items: workOrderItems,
+    status: totalToProduce > 0 ? "planned" : "completed",
+    startDate,
+    dueDate: order.requestedDeadline ? new Date(order.requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),
+    inventoryStatus
+  });
+
+  await Order.findByIdAndUpdate(order._id, {
+    items: orderItems,
+    status: totalToProduce > 0 ? "in_production" : "completed"
+  });
+
+  await Promise.all(
+    partOrders.map((partOrder) => {
+      partOrder.workOrderId = workOrder._id;
+      return partOrder.save();
+    })
+  );
+
+  const phases = [];
+  for (const item of cleanItems) {
+    const workOrderItem = workOrderItems.find((candidate) => String(candidate.productId) === String(item.productId));
+    if (!workOrderItem || workOrderItem.toProduce <= 0) continue;
+    const product = productById.get(String(item.productId));
+    phases.push(...await generateAndAssignPhases({ workOrder, product, quantity: workOrderItem.toProduce, startDate }));
+  }
+
+  if (totalToProduce === 0) {
+    await completeWorkOrderForApproval(workOrder._id, {
+      actor,
+      llmProvider,
+      rawInput: rawInput || { source: "convert_existing_order", orderId }
+    });
+  }
+
+  const output = {
+    workOrder: totalToProduce === 0 ? await WorkOrder.findById(workOrder._id).lean() : workOrder,
+    phases,
+    inventoryCheck: inventoryChecks,
+    partOrders,
+    message: `${workOrder.code} created from existing order for ${orderItems.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}. ${totalFromStock} from finished stock, ${totalToProduce} to produce. Inventory was ${inventoryStatus}.`
+  };
+
+  await ActivityLog.create({
+    actor,
+    action: "convert_order_to_work_order",
+    llmProvider,
+    mcpTool: "process_existing_order",
+    input: rawInput || { orderId },
+    output: {
+      orderId: order._id,
+      workOrderCode: workOrder.code,
       phaseCount: phases.length,
       inventoryStatus,
       finishedStockUsed: totalFromStock,

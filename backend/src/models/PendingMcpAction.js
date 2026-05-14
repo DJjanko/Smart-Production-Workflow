@@ -15,7 +15,7 @@ const pendingMcpActionSchema = new mongoose.Schema(
       default: "pending",
       index: true
     },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     resolvedAt: { type: Date }
   },
   { timestamps: true }

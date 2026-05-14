@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ClipboardList, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, ClipboardList, Pencil, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { InlineDateTimeMenu, InlineStatusMenu } from "../components/InlineControls.jsx";
@@ -8,13 +8,13 @@ import { OrderItemsEditor, normalizeOrderItems } from "../components/OrderItemsE
 import { StatusBadge } from "../components/StatusBadge.jsx";
 import { StatusFilterMenu } from "../components/StatusFilterMenu.jsx";
 import { formatDate } from "../utils/date.js";
-import { label, statusLabel } from "../utils/i18n.js";
+import { label } from "../utils/i18n.js";
 
 const emptyForm = {
   customerName: "",
   items: [],
   requestedDeadline: "",
-  status: "confirmed"
+  status: "draft"
 };
 
 const emptyItem = { productId: "", quantity: 1 };
@@ -29,7 +29,7 @@ function orderToForm(order) {
   };
 }
 
-export function OrdersPage({ session }) {
+export function OrdersPage({ session, dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -60,7 +60,7 @@ export function OrdersPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -74,6 +74,14 @@ export function OrdersPage({ session }) {
     );
   }, [orders, search, statusFilter]);
   const selectedOrder = selectedOrderId ? orders.find((order) => order._id === selectedOrderId) : null;
+
+  function getLinkedWorkOrder(order) {
+    if (order.workOrderId || order.hasWorkOrder) {
+      return workOrders.find((workOrder) => String(workOrder._id) === String(order.workOrderId)) || { code: order.workOrderCode };
+    }
+
+    return workOrders.find((workOrder) => String(workOrder.orderId?._id || workOrder.orderId) === String(order._id)) || null;
+  }
 
   async function createOrder(event) {
     event.preventDefault();
@@ -163,6 +171,20 @@ export function OrdersPage({ session }) {
     }
   }
 
+  async function convertToWorkOrder(order) {
+    setError("");
+    setLoading(true);
+
+    try {
+      await api.convertOrderToWorkOrder(order._id, session.token);
+      await loadPageData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="main">
       <header className="topbar">
@@ -212,13 +234,9 @@ export function OrdersPage({ session }) {
               <label>{label("deadline")}<input type="datetime-local" value={form.requestedDeadline} onChange={(event) => setForm({ ...form, requestedDeadline: event.target.value })} /></label>
               <label>
                 {label("status")}
-                <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}>
-                  <option value="draft">{statusLabel("draft")}</option>
-                  <option value="confirmed">{statusLabel("confirmed")}</option>
-                  <option value="in_production">{statusLabel("in_production")}</option>
-                  <option value="completed">{statusLabel("completed")}</option>
-                  <option value="sold">{statusLabel("sold")}</option>
-                </select>
+                <div className="readonlyStatusField">
+                  <StatusBadge value="draft" />
+                </div>
               </label>
               <div className="formActions formActionsRight">
                 <button type="button" className="iconText" onClick={() => { setShowCreate(false); setForm(emptyForm); setEditingItem(null); }}><X size={17} />{label("cancel")}</button>
@@ -233,10 +251,13 @@ export function OrdersPage({ session }) {
           <div className="entityList">
             {filteredOrders.map((order) => {
               const isEditing = editingOrder?.id === order._id;
+              const linkedWorkOrder = getLinkedWorkOrder(order);
+              const hasWorkOrder = Boolean(linkedWorkOrder);
+              const effectiveStatus = hasWorkOrder ? order.status : "draft";
 
               return (
                 <div
-                  className={`entityItem ${isEditing ? "entityEditing" : "productEntity"}`}
+                  className={`entityItem status-${effectiveStatus} ${!hasWorkOrder ? "draftOrderItem" : ""} ${isEditing ? "entityEditing" : "productEntity"}`}
                   key={order._id}
                   role={isEditing ? undefined : "button"}
                   tabIndex={isEditing ? undefined : 0}
@@ -274,21 +295,42 @@ export function OrdersPage({ session }) {
                       <div>
                         <strong>{order.customerName}</strong>
                         <span>{order.items?.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}</span>
-                        <p>{label("deadline")}: {formatDate(order.requestedDeadline)}</p>
+                        <p>
+                          {label("deadline")}: {formatDate(order.requestedDeadline)}
+                          {hasWorkOrder && linkedWorkOrder?.code ? ` / ${label("workOrders")}: ${linkedWorkOrder.code}` : ""}
+                        </p>
                       </div>
                       {isAdmin ? (
                         <div className="inlineListControls" onClick={(event) => event.stopPropagation()}>
                           <InlineDateTimeMenu label={label("deadline")} value={order.requestedDeadline} onChange={(requestedDeadline) => saveOrderField(order, { requestedDeadline })} disabled={loading} />
-                          <InlineStatusMenu
-                            label={label("status")}
-                            value={order.status}
-                            options={["draft", "confirmed", "in_production", "completed", "sold"]}
-                            onChange={(status) => saveOrderField(order, { status })}
-                            disabled={loading}
-                          />
+                          {hasWorkOrder ? (
+                            <InlineStatusMenu
+                              label={label("status")}
+                              value={effectiveStatus}
+                              options={["draft", "confirmed", "in_production", "completed", "sold"]}
+                              onChange={(status) => saveOrderField(order, { status })}
+                              disabled={loading}
+                            />
+                          ) : (
+                            <div className="inlineControl">
+                              <span>{label("status")}</span>
+                              <StatusBadge value="draft" />
+                            </div>
+                          )}
                         </div>
-                      ) : <StatusBadge value={order.status} />}
+                      ) : <StatusBadge value={effectiveStatus} />}
                       {isAdmin && <div className="rowActions">
+                        {!hasWorkOrder && (
+                          <button
+                            className="iconText convertOrderButton"
+                            onClick={(event) => { event.stopPropagation(); convertToWorkOrder(order); }}
+                            disabled={loading}
+                            aria-label="Ustvari delovni nalog iz narocila"
+                          >
+                            <Play size={17} />
+                            {label("createWorkOrder")}
+                          </button>
+                        )}
                         <button className="iconButton" onClick={(event) => { event.stopPropagation(); setEditingOrder(orderToForm(order)); }} aria-label="Uredi narocilo"><Pencil size={17} /></button>
                         <button className="dangerButton" onClick={(event) => { event.stopPropagation(); handleDelete(order._id); }}><Trash2 size={17} /></button>
                       </div>}
