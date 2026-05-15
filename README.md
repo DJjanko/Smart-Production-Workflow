@@ -52,7 +52,7 @@ MongoDB
 ### 1. Kloniranje in odvisnosti
 
 ```bash
-git clone <repo>
+git clone https://github.com/DJjanko/Smart-Production-Workflow.git
 
 cd backend
 npm install
