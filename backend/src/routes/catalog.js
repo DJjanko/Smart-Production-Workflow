@@ -4,12 +4,14 @@ import {
   createInventory,
   createManualWorkOrder,
   createOrder,
+  convertOrderToWorkOrder,
   createPart,
   createProduct,
   createProductInventory,
   createSupplyAlert,
   createUser,
   createWorkOrderPhase,
+  approveWorkOrder,
   deleteEmployee,
   deleteInventory,
   deleteOrder,
@@ -20,6 +22,7 @@ import {
   deleteWorkOrder,
   deleteWorkOrderPhase,
   getActivityLog,
+  setActivityAccuracy,
   getEmployees,
   getInventory,
   getMe,
@@ -65,9 +68,11 @@ catalogRouter.route("/employees").get(getEmployees).post(adminOnly, createEmploy
 catalogRouter.route("/employees/:id").put(adminOnly, updateEmployee).delete(adminOnly, deleteEmployee);
 
 catalogRouter.route("/orders").get(getOrders).post(adminOnly, createOrder);
+catalogRouter.route("/orders/:id/create-work-order").post(adminOnly, convertOrderToWorkOrder);
 catalogRouter.route("/orders/:id").put(adminOnly, updateOrder).delete(adminOnly, deleteOrder);
 
 catalogRouter.route("/work-orders").get(getWorkOrders).post(adminOnly, createManualWorkOrder);
+catalogRouter.route("/work-orders/:id/approve").put(adminOnly, approveWorkOrder);
 catalogRouter.route("/work-orders/:id").put(adminOnly, updateWorkOrder).delete(adminOnly, deleteWorkOrder);
 
 catalogRouter.route("/work-order-phases").get(getWorkOrderPhases).post(adminOnly, createWorkOrderPhase);
@@ -81,4 +86,5 @@ catalogRouter.route("/me").get(authenticate, getMe).put(authenticate, updateMe);
 catalogRouter.route("/supply-alerts").get(adminOnly, getSupplyAlerts).post(authenticate, createSupplyAlert);
 catalogRouter.route("/supply-alerts/:id/resolve").put(adminOnly, resolveSupplyAlert);
 
-catalogRouter.get("/activity-log", getActivityLog);
+catalogRouter.get("/activity-log", authenticate, getActivityLog);
+catalogRouter.patch("/activity-log/:id/accuracy", authenticate, setActivityAccuracy);

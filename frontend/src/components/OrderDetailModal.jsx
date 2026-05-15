@@ -1,7 +1,7 @@
 import { CalendarDays, ClipboardList, Factory, PackageCheck, UserRoundCheck, X } from "lucide-react";
 import { StatusBadge } from "./StatusBadge.jsx";
 import { formatDate } from "../utils/date.js";
-import { label } from "../utils/i18n.js";
+import { label, statusLabel } from "../utils/i18n.js";
 
 export function OrderDetailModal({ order, workOrders = [], onClose }) {
   if (!order) return null;
@@ -73,7 +73,7 @@ export function OrderDetailModal({ order, workOrders = [], onClose }) {
                   <div>
                     <strong>{workOrder.code}</strong>
                     <span>{workOrder.items?.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}</span>
-                    <p>{label("deadline")}: {formatDate(workOrder.dueDate)} / {label("inventory")}: {workOrder.inventoryStatus}</p>
+                    <p>{label("deadline")}: {formatDate(workOrder.dueDate)} / {label("inventory")}: {statusLabel(workOrder.inventoryStatus)}</p>
                   </div>
                   <StatusBadge value={workOrder.status} />
                 </div>

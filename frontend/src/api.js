@@ -13,10 +13,21 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data?.message || data?.interpreted?.message || "Request failed.");
+    throw new Error(data?.message || data?.result?.message || data?.interpreted?.message || "Request failed.");
   }
 
   return data;
+}
+
+function toQuery(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      query.set(key, String(value));
+    }
+  });
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : "";
 }
 
 export const api = {
@@ -45,10 +56,12 @@ export const api = {
   orders: () => request("/orders"),
   createOrder: (body, token) => request("/orders", { method: "POST", body, token }),
   updateOrder: (id, body, token) => request(`/orders/${id}`, { method: "PUT", body, token }),
+  convertOrderToWorkOrder: (id, token) => request(`/orders/${id}/create-work-order`, { method: "POST", token }),
   deleteOrder: (id, token) => request(`/orders/${id}`, { method: "DELETE", token }),
   workOrders: () => request("/work-orders"),
   createWorkOrder: (body, token) => request("/work-orders", { method: "POST", body, token }),
   updateWorkOrder: (id, body, token) => request(`/work-orders/${id}`, { method: "PUT", body, token }),
+  approveWorkOrder: (id, token) => request(`/work-orders/${id}/approve`, { method: "PUT", token }),
   deleteWorkOrder: (id, token) => request(`/work-orders/${id}`, { method: "DELETE", token }),
   workOrderPhases: () => request("/work-order-phases"),
   updateWorkOrderPhase: (id, body, token) => request(`/work-order-phases/${id}`, { method: "PUT", body, token }),
@@ -62,6 +75,10 @@ export const api = {
   supplyAlerts: (token) => request("/supply-alerts", { token }),
   createSupplyAlert: (body, token) => request("/supply-alerts", { method: "POST", body, token }),
   resolveSupplyAlert: (id, token) => request(`/supply-alerts/${id}/resolve`, { method: "PUT", token }),
-  activityLog: () => request("/activity-log"),
-  runCommand: (body, token) => request("/ai/commands", { method: "POST", body, token })
+  activityLog: (params, token) => request(`/activity-log${toQuery(params)}`, { token }),
+  setActivityAccuracy: (id, body, token) => request(`/activity-log/${id}/accuracy`, { method: "PATCH", body, token }),
+  runCommand: (body, token) => request("/ai/commands", { method: "POST", body, token }),
+  pendingActions: (token) => request("/ai/pending-actions", { token }),
+  acceptPendingAction: (id, token) => request(`/ai/pending-actions/${id}/accept`, { method: "PUT", token }),
+  declinePendingAction: (id, token) => request(`/ai/pending-actions/${id}/decline`, { method: "PUT", token })
 };

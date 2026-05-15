@@ -17,8 +17,6 @@ import { TimelinePage } from "./pages/TimelinePage.jsx";
 import { WorkOrdersPage } from "./pages/WorkOrdersPage.jsx";
 import { label } from "./utils/i18n.js";
 
-const demoCommand = "Ustvari delovni nalog za 5 kosov izdelka Kovinsko ohisje A za podjetje AluTech do petka.";
-
 function NotificationCenter({ alerts, isAdmin, onOpenAlert, onResolveAlert }) {
   const [open, setOpen] = useState(false);
 
@@ -91,18 +89,68 @@ function App() {
   const [activePage, setActivePage] = useState("dashboard");
   const [assistantOpen, setAssistantOpen] = useState(true);
   const [activities, setActivities] = useState([]);
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [supplyAlerts, setSupplyAlerts] = useState([]);
   const [highlightLowStock, setHighlightLowStock] = useState(false);
-  const [command, setCommand] = useState(demoCommand);
-  const [provider, setProvider] = useState("openai");
+  const [command, setCommand] = useState("");
+  const [provider, setProvider] = useState("ollama");
   const [result, setResult] = useState(null);
+  const [assistantMessages, setAssistantMessages] = useState(() => {
+    const raw = localStorage.getItem("spw-assistant-messages");
+    return raw ? JSON.parse(raw) : [];
+  });
+  const [activityFilters, setActivityFilters] = useState({ limit: 30, mine: false, date: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [assistantLoading, setAssistantLoading] = useState(false);
 
-  async function loadActivities() {
-    const data = await api.activityLog();
+  function appendAssistantMessage(message) {
+    setAssistantMessages((current) => {
+      const next = [...current, { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...message }].slice(-40);
+      localStorage.setItem("spw-assistant-messages", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function resolvePendingMessage(id, status) {
+    setAssistantMessages((current) => {
+      const next = current.map((message) => {
+        if (message.response?.pendingAction?.id !== id) return message;
+
+        return {
+          ...message,
+          response: {
+            ...message.response,
+            pendingAction: {
+              ...message.response.pendingAction,
+              status
+            }
+          }
+        };
+      });
+      localStorage.setItem("spw-assistant-messages", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  async function loadActivities(filters = activityFilters) {
+    const data = await api.activityLog(filters, session?.token);
     setActivities(data);
+  }
+
+  function refreshAppData() {
+    setDataRefreshKey((key) => key + 1);
+  }
+
+  async function updateActivityFilters(nextFilters) {
+    const normalizedFilters = {
+      ...activityFilters,
+      ...nextFilters
+    };
+    setActivityFilters(normalizedFilters);
+    if (session) {
+      await loadActivities(normalizedFilters);
+    }
   }
 
   async function loadSupplyAlerts() {
@@ -153,19 +201,73 @@ function App() {
     setActivities([]);
     setSupplyAlerts([]);
     setResult(null);
+    setAssistantMessages([]);
+    localStorage.removeItem("spw-assistant-messages");
     setError("");
   }
 
-  async function runAssistantCommand(event) {
+  async function runAssistantCommand(event, options = {}) {
     event.preventDefault();
+    const submittedCommand = command.trim();
+    if (!submittedCommand) return;
+
     setAssistantLoading(true);
+    appendAssistantMessage({ role: "user", text: submittedCommand, provider });
+    setCommand("");
 
     try {
-      const data = await api.runCommand({ command, provider }, session?.token);
+      const language = localStorage.getItem("spw-language") || "sl";
+      const useGuard = options.useGuard !== false;
+      const data = await api.runCommand({ command: submittedCommand, provider, language, useGuard, naturalResponse: options.naturalResponse ?? false }, session?.token);
       setResult(data);
+      appendAssistantMessage({ role: "assistant", response: data, provider, action: data.tool || data.interpreted?.intent });
+      refreshAppData();
       await loadActivities();
     } catch (err) {
-      setResult({ interpreted: { intent: "error", message: err.message } });
+      const errorResult = { interpreted: { intent: "error", message: err.message } };
+      setResult(errorResult);
+      appendAssistantMessage({ role: "assistant", response: errorResult, provider, action: "error" });
+      await loadActivities().catch(() => {});
+    } finally {
+      setAssistantLoading(false);
+    }
+  }
+
+  async function acceptPendingAction(id) {
+    setAssistantLoading(true);
+    resolvePendingMessage(id, "accepted");
+    appendAssistantMessage({ role: "user", text: "Potrdi akcijo", provider });
+
+    try {
+      const data = await api.acceptPendingAction(id, session?.token);
+      setResult(data);
+      appendAssistantMessage({ role: "assistant", response: data, provider, action: data.tool || data.interpreted?.intent });
+      refreshAppData();
+      await loadActivities();
+    } catch (err) {
+      const errorResult = { interpreted: { intent: "error", message: err.message } };
+      setResult(errorResult);
+      appendAssistantMessage({ role: "assistant", response: errorResult, provider, action: "error" });
+      await loadActivities().catch(() => {});
+    } finally {
+      setAssistantLoading(false);
+    }
+  }
+
+  async function declinePendingAction(id) {
+    setAssistantLoading(true);
+    resolvePendingMessage(id, "declined");
+    appendAssistantMessage({ role: "user", text: "Zavrni akcijo", provider });
+
+    try {
+      const data = await api.declinePendingAction(id, session?.token);
+      setResult(data);
+      appendAssistantMessage({ role: "assistant", response: data, provider, action: data.tool || data.interpreted?.intent });
+      await loadActivities();
+    } catch (err) {
+      const errorResult = { interpreted: { intent: "error", message: err.message } };
+      setResult(errorResult);
+      appendAssistantMessage({ role: "assistant", response: errorResult, provider, action: "error" });
       await loadActivities().catch(() => {});
     } finally {
       setAssistantLoading(false);
@@ -184,7 +286,7 @@ function App() {
     );
   }
 
-  const pageProps = { session };
+  const pageProps = { session, dataRefreshKey };
   const isAdmin = session.user?.role === "admin";
   const pages = {
     dashboard: <DashboardPage {...pageProps} />,
@@ -227,6 +329,8 @@ function App() {
       {assistantOpen ? (
         <CopilotPanel
           activities={activities}
+          activityFilters={activityFilters}
+          messages={assistantMessages}
           command={command}
           provider={provider}
           result={result}
@@ -234,6 +338,9 @@ function App() {
           setCommand={setCommand}
           setProvider={setProvider}
           onRunCommand={runAssistantCommand}
+          onAcceptPending={acceptPendingAction}
+          onDeclinePending={declinePendingAction}
+          onActivityFiltersChange={updateActivityFilters}
           onHide={() => setAssistantOpen(false)}
         />
       ) : (

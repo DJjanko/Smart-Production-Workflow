@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardList, Image, Pencil, Plus, PackagePlus, Save, Search, Trash2, Wrench, X } from "lucide-react";
 import { api } from "../api.js";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { label } from "../utils/i18n.js";
 
@@ -461,7 +462,7 @@ function PhaseEditor({
   );
 }
 
-export function ProductsPage({ session }) {
+export function ProductsPage({ session, dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [products, setProducts] = useState([]);
   const [parts, setParts] = useState([]);
@@ -479,6 +480,7 @@ export function ProductsPage({ session }) {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   async function loadPageData() {
     const [productData, partData] = await Promise.all([api.products(), api.parts()]);
@@ -488,7 +490,7 @@ export function ProductsPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -721,7 +723,7 @@ export function ProductsPage({ session }) {
                       </div>
                       {isAdmin && <div className="rowActions">
                         <button className="iconButton" onClick={(event) => { event.stopPropagation(); startProductEdit(product); }} aria-label="Uredi izdelek"><Pencil size={17} /></button>
-                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); handleDelete(product._id); }} disabled={loading} aria-label="Izbrisi izdelek">
+                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); setConfirmDelete({ id: product._id, title: `Izbriši izdelek "${product.name}"?`, description: "Izbris bo trajno odstranil izdelek, njegove faze in zalogo." }); }} disabled={loading} aria-label="Izbrisi izdelek">
                           <Trash2 size={17} />
                         </button>
                       </div>}
@@ -736,6 +738,12 @@ export function ProductsPage({ session }) {
       </section>
 
       <ProductDetailModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+      <ConfirmDeleteModal
+        title={confirmDelete?.title}
+        description={confirmDelete?.description}
+        onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </main>
   );
 }

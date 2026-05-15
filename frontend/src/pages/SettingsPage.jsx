@@ -43,7 +43,7 @@ function UserForm({ user, setUser, onSubmit, onCancel, loading, submitLabel }) {
   );
 }
 
-export function SettingsPage({ session }) {
+export function SettingsPage({ session, dataRefreshKey }) {
   const [users, setUsers] = useState([]);
   const [language, setLanguage] = useState(() => localStorage.getItem("spw-language") || session.user?.language || "sl");
   const [timelineView, setTimelineView] = useState(() => localStorage.getItem("spw-dashboard-timeline-view") || "list");
@@ -64,7 +64,7 @@ export function SettingsPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   async function handleCreate(event) {
     event.preventDefault();

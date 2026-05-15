@@ -3,16 +3,8 @@ import { BarChart3, ChevronDown, ChevronLeft, ChevronRight, Filter, List, X } fr
 import { EmptyState } from "./EmptyState.jsx";
 import { StatusBadge } from "./StatusBadge.jsx";
 import { formatDate } from "../utils/date.js";
-import { label, statusLabel } from "../utils/i18n.js";
+import { label, statusLabel, phaseColor } from "../utils/i18n.js";
 
-const PHASE_COLORS = {
-  rezanje: "#176b87",
-  sestavljanje: "#7a5c16",
-  varjenje: "#a13b3f",
-  "elektro montaza": "#4e5bb8",
-  kontrola: "#1f7b52",
-  pakiranje: "#8b4e9f"
-};
 const STATUS_OPTIONS = ["planned", "in_progress", "completed"];
 
 function dateInput(date) {
@@ -56,14 +48,6 @@ function overlapsRange(phase, range) {
   return Number.isFinite(start.getTime()) && Number.isFinite(end.getTime()) && start < range.end && end > range.start;
 }
 
-function phaseColor(name = "") {
-  const key = name.toLowerCase().trim();
-  if (PHASE_COLORS[key]) return PHASE_COLORS[key];
-
-  let hash = 0;
-  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 360;
-  return `hsl(${hash} 46% 38%)`;
-}
 
 function axisTicks(mode, range) {
   if (mode === "week") {
@@ -132,13 +116,14 @@ function StatusFilterMenu({ value, onChange }) {
           {options.map((option) => (
             <button
               type="button"
-              className={option.value === value ? "selected" : ""}
+              className={`${option.value !== "all" ? `phaseOpt ${option.value}` : ""} ${option.value === value ? "selected" : ""}`}
               key={option.value}
               onClick={() => {
                 onChange(option.value);
                 setOpen(false);
               }}
             >
+              {option.value !== "all" && <span className={`phaseIndicator ${option.value}`} />}
               {option.label}
             </button>
           ))}
@@ -220,8 +205,11 @@ export function TimelinePanel({ timeline, contextFilters = [], onClearContextFil
       {view === "list" ? (
         <div className="timelineList">
           {filteredTimeline.map((phase) => (
-            <div className="phaseItem phaseColorItem" key={phase._id} style={{ "--phase-color": phaseColor(phase.name) }}>
-              <div className="phaseTime">{formatDate(phase.start)} - {formatDate(phase.end)}</div>
+            <div className={`phaseItem phaseColorItem phase-status-${phase.status}`} key={phase._id} style={{ "--phase-color": phaseColor(phase.name) }}>
+              <div className="phaseTime">
+                <span>↑ {formatDate(phase.start)}</span>
+                <span>↓ {formatDate(phase.end)}</span>
+              </div>
               <div className="phaseBody">
                 <strong>{phase.workOrderId?.code || "WO"} / {phase.name}</strong>
                 <span><b>{phase.assignedToName || label("noData")}</b> / {phase.requiredSkill}</span>
@@ -255,7 +243,7 @@ export function TimelinePanel({ timeline, contextFilters = [], onClearContextFil
               const width = Math.max(3, right - left);
 
               return (
-                <div className="timelineBarRow graphRow" key={phase._id}>
+                <div className={`timelineBarRow graphRow phase-status-${phase.status}`} key={phase._id} style={{ "--phase-color": phaseColor(phase.name) }}>
                   <div>
                     <strong>{phase.workOrderId?.code || "WO"} / {phase.name}</strong>
                     <span>{phase.assignedToName || label("noData")}</span>

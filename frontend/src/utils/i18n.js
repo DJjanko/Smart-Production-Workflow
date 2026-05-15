@@ -25,6 +25,7 @@ const LABELS = {
     customer: "Kupec",
     currentPassword: "Trenutno geslo",
     completed: "koncano",
+    completedProducts: "Dokoncani izdelki",
     confirmed: "potrjeno",
     countProducts: "izdelkov",
     countTotal: "skupaj",
@@ -59,6 +60,7 @@ const LABELS = {
     inventorySubtitle: "Sifrant delov in stanje skladisca.",
     in_progress: "v procesu",
     in_production: "v proizvodnji",
+    issuedProducts: "Izdano/prodano",
     list: "Seznam",
     location: "Lokacija",
     logout: "Odjava",
@@ -93,6 +95,8 @@ const LABELS = {
     provider: "Ponudnik",
     quantity: "Kolicina",
     reserved: "Rezervirano",
+    replenished: "dopolnjeno",
+    missing: "manjka",
     result: "Rezultat",
     role: "Vloga",
     run: "Izvedi",
@@ -111,6 +115,9 @@ const LABELS = {
     selectProduct: "Izberi izdelek",
     selected: "izbranih",
     sentBy: "Poslal",
+    sold: "prodano",
+    approvePayment: "Odobreno",
+    awaitingPayment: "Caka odobritev",
     sendAlert: "Poslji opozorilo",
     sendAdminAlert: "Opozori admina",
     skill: "Znanje",
@@ -168,6 +175,7 @@ const LABELS = {
     customer: "Customer",
     currentPassword: "Current password",
     completed: "completed",
+    completedProducts: "Completed products",
     confirmed: "confirmed",
     countProducts: "products",
     countTotal: "total",
@@ -202,6 +210,7 @@ const LABELS = {
     inventorySubtitle: "Parts master data and warehouse stock.",
     in_progress: "in progress",
     in_production: "in production",
+    issuedProducts: "Issued/sold",
     list: "List",
     location: "Location",
     logout: "Log out",
@@ -236,6 +245,8 @@ const LABELS = {
     provider: "Provider",
     quantity: "Quantity",
     reserved: "Reserved",
+    replenished: "replenished",
+    missing: "missing",
     result: "Result",
     role: "Role",
     run: "Run",
@@ -254,6 +265,9 @@ const LABELS = {
     selectProduct: "Select product",
     selected: "selected",
     sentBy: "Sent by",
+    sold: "sold",
+    approvePayment: "Approved",
+    awaitingPayment: "Awaiting approval",
     sendAlert: "Send alert",
     sendAdminAlert: "Alert admin",
     skill: "Skill",
@@ -298,4 +312,24 @@ export function label(key) {
 
 export function statusLabel(value) {
   return label(value);
+}
+
+const PHASE_COLORS = {
+  rezanje:        "#2980a8",
+  sestavljanje:   "#b07d12",
+  varjenje:       "#b84646",
+  "elektro montaza": "#5568c0",
+  kontrola:       "#2a9264",
+  pakiranje:      "#9450aa",
+  programiranje:  "#3a7abf",
+  lakiranie:      "#c46b20",
+  bruenje:        "#7a6baa"
+};
+
+export function phaseColor(name = "") {
+  const key = name.toLowerCase().trim();
+  if (PHASE_COLORS[key]) return PHASE_COLORS[key];
+  let hash = 0;
+  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+  return `hsl(${hash} 42% 42%)`;
 }

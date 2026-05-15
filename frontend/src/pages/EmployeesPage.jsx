@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Pencil, Plus, Save, Search, Trash2, UsersRound, X } from "lucide-react";
 import { api } from "../api.js";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal.jsx";
 import { EmployeeDetailModal } from "../components/EmployeeDetailModal.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { label } from "../utils/i18n.js";
@@ -16,7 +17,7 @@ function employeeToForm(employee) {
   };
 }
 
-export function EmployeesPage({ session }) {
+export function EmployeesPage({ session, dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [employees, setEmployees] = useState([]);
   const [phases, setPhases] = useState([]);
@@ -25,6 +26,7 @@ export function EmployeesPage({ session }) {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -36,7 +38,7 @@ export function EmployeesPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredEmployees = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -190,7 +192,7 @@ export function EmployeesPage({ session }) {
                       </div>
                       {isAdmin && <div className="rowActions">
                         <button className="iconButton" onClick={(event) => { event.stopPropagation(); setEditingEmployee(employeeToForm(employee)); }} aria-label="Uredi zaposlenega"><Pencil size={17} /></button>
-                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); handleDelete(employee._id); }} disabled={loading}><Trash2 size={17} /></button>
+                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); setConfirmDelete({ id: employee._id, title: `Izbriši zaposlenega "${employee.name}"?`, description: "Trajno bo odstranil zaposlenega in razdelil dodeljene faze." }); }} disabled={loading}><Trash2 size={17} /></button>
                       </div>}
                     </>
                   )}
@@ -201,6 +203,12 @@ export function EmployeesPage({ session }) {
           </div>
       </section>
       <EmployeeDetailModal employee={selectedEmployee} phases={phases} onClose={() => setSelectedEmployee(null)} />
+      <ConfirmDeleteModal
+        title={confirmDelete?.title}
+        description={confirmDelete?.description}
+        onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </main>
   );
 }

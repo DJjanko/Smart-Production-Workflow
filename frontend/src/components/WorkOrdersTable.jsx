@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { BarChart3, ChevronLeft, ChevronRight, List, Search } from "lucide-react";
 import { EmptyState } from "./EmptyState.jsx";
 import { StatusBadge } from "./StatusBadge.jsx";
+import { StatusFilterMenu } from "./StatusFilterMenu.jsx";
 import { formatDate } from "../utils/date.js";
 import { label } from "../utils/i18n.js";
 
@@ -83,6 +84,7 @@ export function WorkOrdersTable({ workOrders, selectedIds = [], onWorkOrderClick
   const [periodMode, setPeriodMode] = useState("month");
   const [month, setMonth] = useState(currentMonthInput());
   const [year, setYear] = useState(currentYearInput());
+  const [statusFilter, setStatusFilter] = useState("all");
   const range = useMemo(() => periodRange(periodMode, month, year), [periodMode, month, year]);
   const ticks = useMemo(() => periodTicks(periodMode, range), [periodMode, range]);
   const [search, setSearch] = useState("");
@@ -91,6 +93,7 @@ export function WorkOrdersTable({ workOrders, selectedIds = [], onWorkOrderClick
     return workOrders.filter((order) => {
       const matchesPeriod = orderOverlapsPeriod(order, range);
       if (!matchesPeriod) return false;
+      if (statusFilter !== "all" && order.status !== statusFilter) return false;
       if (!query) return true;
 
       return [
@@ -99,7 +102,7 @@ export function WorkOrdersTable({ workOrders, selectedIds = [], onWorkOrderClick
         order.items?.map((item) => `${item.quantity} ${item.productName}`).join(" ")
       ].join(" ").toLowerCase().includes(query);
     });
-  }, [workOrders, range, search]);
+  }, [workOrders, range, search, statusFilter]);
   const span = Math.max(1, range.end.getTime() - range.start.getTime());
 
   function movePeriod(direction) {
@@ -113,6 +116,7 @@ export function WorkOrdersTable({ workOrders, selectedIds = [], onWorkOrderClick
       <div className="sectionHeader">
         <h2>{label("workOrders")}</h2>
         <div className="timelineHeaderActions">
+          <StatusFilterMenu value={statusFilter} onChange={setStatusFilter} ariaLabel="Filter statusa delovnih nalogov" />
           <span>{filteredOrders.length} / {workOrders.length}</span>
           <div className="rangeControls monthControl">
             <button type="button" className={periodMode === "month" ? "selected" : ""} onClick={() => setPeriodMode("month")}>{label("month")}</button>
@@ -147,7 +151,7 @@ export function WorkOrdersTable({ workOrders, selectedIds = [], onWorkOrderClick
           {filteredOrders.map((order) => (
             <button
               type="button"
-              className={`row dashboardClickableRow ${selectedIds.includes(String(order._id)) ? "selectedFilterItem" : ""}`}
+              className={`row dashboardClickableRow status-${order.status} ${selectedIds.includes(String(order._id)) ? "selectedFilterItem" : ""} ${order.status === "completed" && order.fulfillmentStatus === "awaiting_payment" ? "awaitingPayment" : ""}`}
               key={order._id}
               onClick={() => onWorkOrderClick?.(order)}
             >
@@ -177,7 +181,7 @@ export function WorkOrdersTable({ workOrders, selectedIds = [], onWorkOrderClick
               return (
                 <button
                   type="button"
-                  className={`timelineBarRow dashboardClickableRow graphRow ${selectedIds.includes(String(order._id)) ? "selectedFilterItem" : ""}`}
+                  className={`timelineBarRow dashboardClickableRow graphRow status-${order.status} ${selectedIds.includes(String(order._id)) ? "selectedFilterItem" : ""} ${order.status === "completed" && order.fulfillmentStatus === "awaiting_payment" ? "awaitingPayment" : ""}`}
                   key={order._id}
                   onClick={() => onWorkOrderClick?.(order)}
                 >

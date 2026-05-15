@@ -30,7 +30,7 @@ function phaseDurationHours(phase) {
   return Number.isFinite(hours) && hours > 0 ? hours : 0;
 }
 
-export function AccountPage({ session }) {
+export function AccountPage({ session, dataRefreshKey }) {
   const [account, setAccount] = useState(session.user);
   const [employees, setEmployees] = useState([]);
   const [phases, setPhases] = useState([]);
@@ -53,7 +53,7 @@ export function AccountPage({ session }) {
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const employee = useMemo(() => (
     employees.find((item) => String(item.userId || "") === String(account.id)) ||

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackagePlus, PackageX, Pencil, Plus, Save, Search, Send, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { label } from "../utils/i18n.js";
 
@@ -33,7 +34,7 @@ function productInventoryToForm(row, productId) {
   };
 }
 
-export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = [] }) {
+export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = [], dataRefreshKey }) {
   const isAdmin = session.user?.role === "admin";
   const [products, setProducts] = useState([]);
   const [productInventory, setProductInventory] = useState([]);
@@ -47,6 +48,7 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
   const [showCreatePart, setShowCreatePart] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [partSearch, setPartSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,7 +68,7 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
 
   useEffect(() => {
     loadPageData().catch((err) => setError(err.message));
-  }, []);
+  }, [dataRefreshKey]);
 
   const filteredParts = useMemo(() => {
     const query = partSearch.trim().toLowerCase();
@@ -137,6 +139,36 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
         await api.createInventory(payload, session.token);
       }
 
+      setEditingStock(null);
+      await loadPageData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function savePartAndStockEdit() {
+    setError("");
+    setLoading(true);
+
+    try {
+      await api.updatePart(editingPart.id, { ...editingPart, minStock: Number(editingPart.minStock) || 0 }, session.token);
+
+      const payload = {
+        partId: editingStock.partId,
+        availableQuantity: Number(editingStock.availableQuantity) || 0,
+        reservedQuantity: Number(editingStock.reservedQuantity) || 0,
+        location: editingStock.location || "MAIN"
+      };
+
+      if (editingStock.id) {
+        await api.updateInventory(editingStock.id, payload, session.token);
+      } else {
+        await api.createInventory(payload, session.token);
+      }
+
+      setEditingPart(null);
       setEditingStock(null);
       await loadPageData();
     } catch (err) {
@@ -355,7 +387,7 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
                 const hasSupplyAlert = supplyAlerts.some((alert) => String(alert.partId?._id || alert.partId) === String(part._id));
                 return (
                   <div className={`entityItem stockEntity ${(isEditing || isStockEditing) ? "entityEditing" : ""} ${isLowStock ? "lowStockItem" : ""} ${hasSupplyAlert ? "supplyAlertItem" : ""}`} key={part._id}>
-                    {isAdmin && isEditing ? (
+                    {isAdmin && (isEditing || isStockEditing) ? (
                       <>
                         <div className="inlineProductForm">
                           <label>{label("name")}<input value={editingPart.name} onChange={(event) => setEditingPart({ ...editingPart, name: event.target.value })} autoFocus /></label>
@@ -364,19 +396,7 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
                             <label>{label("units")}<input value={editingPart.unit} onChange={(event) => setEditingPart({ ...editingPart, unit: event.target.value })} /></label>
                             <label>Min. zaloga<input type="number" value={editingPart.minStock} onChange={(event) => setEditingPart({ ...editingPart, minStock: event.target.value })} /></label>
                           </div>
-                        </div>
-                        <div className="rowActions inlineProductActions">
-                          <button type="button" className="primary" onClick={savePartEdit} disabled={loading}><Save size={17} />{label("save")}</button>
-                          <button type="button" className="iconText" onClick={() => setEditingPart(null)}><X size={17} />{label("cancel")}</button>
-                        </div>
-                      </>
-                    ) : isAdmin && isStockEditing ? (
-                      <>
-                        <div className="inlineProductForm">
-                          <div>
-                            <strong>{part.name}</strong>
-                            <span>{part.sku} / min {part.minStock} {part.unit}</span>
-                          </div>
+                          <div className="sectionHeader compact"><h2>Zaloga</h2></div>
                           <div className="formRow">
                             <label>{label("available")}<input type="number" value={editingStock.availableQuantity} onChange={(event) => setEditingStock({ ...editingStock, availableQuantity: event.target.value })} autoFocus /></label>
                             <label>{label("reserved")}<input type="number" value={editingStock.reservedQuantity} onChange={(event) => setEditingStock({ ...editingStock, reservedQuantity: event.target.value })} /></label>
@@ -384,8 +404,8 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
                           <label>{label("location")}<input value={editingStock.location} onChange={(event) => setEditingStock({ ...editingStock, location: event.target.value })} /></label>
                         </div>
                         <div className="rowActions inlineProductActions">
-                          <button type="button" className="primary" onClick={saveStockEdit} disabled={loading}><Save size={17} />{label("save")}</button>
-                          <button type="button" className="iconText" onClick={() => setEditingStock(null)}><X size={17} />{label("cancel")}</button>
+                          <button type="button" className="primary" onClick={savePartAndStockEdit} disabled={loading}><Save size={17} />{label("save")}</button>
+                          <button type="button" className="iconText" onClick={() => { setEditingPart(null); setEditingStock(null); }}><X size={17} />{label("cancel")}</button>
                         </div>
                       </>
                     ) : (
@@ -401,9 +421,8 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
                           <span>rez. {stock?.reservedQuantity ?? "-"}</span>
                         </div>
                         {isAdmin && <div className="rowActions">
-                          <button className="iconButton" onClick={() => setEditingPart(partToForm(part))} aria-label="Uredi del"><Pencil size={17} /></button>
-                          <button className={stock ? "iconButton" : "iconText"} onClick={() => setEditingStock(inventoryToForm(stock, part._id))} aria-label={stock ? "Uredi stanje" : undefined}>{stock ? <Pencil size={17} /> : label("addStock")}</button>
-                          <button className="dangerButton" onClick={() => deletePart(part._id)}><Trash2 size={17} /></button>
+                          <button className="iconButton" onClick={() => { setEditingPart(partToForm(part)); setEditingStock(inventoryToForm(stock, part._id)); }} aria-label="Uredi del in zalogo"><Pencil size={17} /></button>
+                          <button className="dangerButton" onClick={() => setConfirmDelete({ id: part._id, title: `Izbriši del "${part.name}"?`, description: "Trajno bo odstranil rezervni del in njegovo stanje zaloge." })}><Trash2 size={17} /></button>
                           {stock && <button className="dangerButton" onClick={() => deleteStock(stock._id)}><X size={17} /></button>}
                         </div>}
                       </>
@@ -414,6 +433,12 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
               {filteredParts.length === 0 && <EmptyState label={label("noResults")} />}
             </div>
       </section>
+      <ConfirmDeleteModal
+        title={confirmDelete?.title}
+        description={confirmDelete?.description}
+        onConfirm={() => { deletePart(confirmDelete.id); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </main>
   );
 }
