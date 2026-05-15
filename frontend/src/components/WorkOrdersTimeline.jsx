@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { EmptyState } from "./EmptyState.jsx";
+import { StatusFilterMenu } from "./StatusFilterMenu.jsx";
 import { formatDate } from "../utils/date.js";
 import { label } from "../utils/i18n.js";
 
@@ -71,11 +72,15 @@ export function WorkOrdersTimeline({ workOrders, onWorkOrderClick }) {
   const [periodMode, setPeriodMode] = useState("month");
   const [month, setMonth] = useState(currentMonthInput());
   const [year, setYear] = useState(currentYearInput());
+  const [statusFilter, setStatusFilter] = useState("all");
   const range = useMemo(() => periodRange(periodMode, month, year), [periodMode, month, year]);
   const ticks = useMemo(() => periodTicks(periodMode, range), [periodMode, range]);
   const filteredOrders = useMemo(
-    () => workOrders.filter((order) => orderOverlapsPeriod(order, range)),
-    [workOrders, range]
+    () => workOrders.filter((order) =>
+      orderOverlapsPeriod(order, range) &&
+      (statusFilter === "all" || order.status === statusFilter)
+    ),
+    [workOrders, range, statusFilter]
   );
   const span = Math.max(1, range.end.getTime() - range.start.getTime());
 
@@ -91,6 +96,7 @@ export function WorkOrdersTimeline({ workOrders, onWorkOrderClick }) {
         <h2>Casovnica nalogov</h2>
         <div className="timelineHeaderActions">
           <span>{filteredOrders.length} / {workOrders.length}</span>
+          <StatusFilterMenu value={statusFilter} onChange={setStatusFilter} ariaLabel="Filter statusa" />
           <div className="rangeControls monthControl">
             <button type="button" className={periodMode === "month" ? "selected" : ""} onClick={() => setPeriodMode("month")}>{label("month")}</button>
             <button type="button" className={periodMode === "year" ? "selected" : ""} onClick={() => setPeriodMode("year")}>{label("year")}</button>
@@ -122,7 +128,7 @@ export function WorkOrdersTimeline({ workOrders, onWorkOrderClick }) {
             return (
               <button
                 type="button"
-                className="timelineBarRow dashboardClickableRow graphRow"
+                className={`timelineBarRow dashboardClickableRow graphRow status-${order.status}`}
                 key={order._id}
                 onClick={() => onWorkOrderClick?.(order)}
               >

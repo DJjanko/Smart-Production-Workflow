@@ -139,7 +139,7 @@ async function autoOrderMissingParts(inventoryCheck) {
 }
 
 async function reserveInventory(product, quantity) {
-  if (quantity <= 0) return;
+  if (quantity <= 0) return [];
 
   await Promise.all(
     product.requiredParts.map((requiredPart) =>
@@ -154,6 +154,12 @@ async function reserveInventory(product, quantity) {
       )
     )
   );
+
+  return product.requiredParts.map((requiredPart) => ({
+    partId: requiredPart.partId._id || requiredPart.partId,
+    partName: requiredPart.partId?.name || requiredPart.partId?.toString() || "",
+    quantity: requiredPart.quantity * quantity
+  }));
 }
 
 async function reserveFinishedProducts(product, quantity) {
@@ -594,7 +600,7 @@ export async function processCustomerOrder({ customerName, productName, quantity
   const firstCheck = toProduce > 0 ? await checkInventoryForProduct(product, toProduce) : [];
   const partOrder = await autoOrderMissingParts(firstCheck);
   const inventoryStatus = partOrder ? "replenished" : "available";
-  await reserveInventory(product, toProduce);
+  const reservedParts = await reserveInventory(product, toProduce);
 
   const order = await Order.create({
     customerName: customerName || "Unknown customer",
@@ -607,6 +613,7 @@ export async function processCustomerOrder({ customerName, productName, quantity
     code: await nextWorkOrderCode(),
     orderId: order._id,
     items: [{ productId: product._id, productName: product.name, quantity: parsedQuantity, fromStock, toProduce }],
+    reservedParts,
     status: toProduce > 0 ? "planned" : "completed",
     startDate,
     dueDate: requestedDeadline ? new Date(requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),
@@ -732,6 +739,7 @@ export async function processCustomerOrderItems({ customerName, items, requested
   const workOrderItems = [];
   const inventoryChecks = [];
   const partOrders = [];
+  const allReservedParts = [];
   let totalToProduce = 0;
   let totalFromStock = 0;
 
@@ -747,7 +755,8 @@ export async function processCustomerOrderItems({ customerName, items, requested
     totalToProduce += toProduce;
     const inventoryCheck = toProduce > 0 ? await checkInventoryForProduct(product, toProduce) : [];
     const partOrder = await autoOrderMissingParts(inventoryCheck);
-    await reserveInventory(product, toProduce);
+    const itemReservedParts = await reserveInventory(product, toProduce);
+    allReservedParts.push(...itemReservedParts);
 
     orderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity });
     workOrderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity, fromStock, toProduce });
@@ -767,6 +776,7 @@ export async function processCustomerOrderItems({ customerName, items, requested
     code: await nextWorkOrderCode(),
     orderId: order._id,
     items: workOrderItems,
+    reservedParts: allReservedParts,
     status: totalToProduce > 0 ? "planned" : "completed",
     startDate,
     dueDate: requestedDeadline ? new Date(requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),
@@ -836,7 +846,7 @@ export async function processExistingOrder({ orderId, actor = "admin", llmProvid
 
   const existingWorkOrder = await WorkOrder.exists({ orderId: order._id });
   if (existingWorkOrder) {
-    const error = new Error("Order is already linked to a work order.");
+    const error = new Error("To narocilo ze ima povezan delovni nalog.");
     error.statusCode = 409;
     throw error;
   }
@@ -859,6 +869,7 @@ export async function processExistingOrder({ orderId, actor = "admin", llmProvid
   const workOrderItems = [];
   const inventoryChecks = [];
   const partOrders = [];
+  const allReservedParts = [];
   let totalToProduce = 0;
   let totalFromStock = 0;
 
@@ -876,7 +887,8 @@ export async function processExistingOrder({ orderId, actor = "admin", llmProvid
     totalToProduce += toProduce;
     const inventoryCheck = toProduce > 0 ? await checkInventoryForProduct(product, toProduce) : [];
     const partOrder = await autoOrderMissingParts(inventoryCheck);
-    await reserveInventory(product, toProduce);
+    const itemReservedParts = await reserveInventory(product, toProduce);
+    allReservedParts.push(...itemReservedParts);
 
     orderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity, fromStock, toProduce });
     workOrderItems.push({ productId: product._id, productName: product.name, quantity: item.quantity, fromStock, toProduce });
@@ -890,6 +902,7 @@ export async function processExistingOrder({ orderId, actor = "admin", llmProvid
     code: await nextWorkOrderCode(),
     orderId: order._id,
     items: workOrderItems,
+    reservedParts: allReservedParts,
     status: totalToProduce > 0 ? "planned" : "completed",
     startDate,
     dueDate: order.requestedDeadline ? new Date(order.requestedDeadline) : new Date(Date.now() + 7 * DAY_MS),

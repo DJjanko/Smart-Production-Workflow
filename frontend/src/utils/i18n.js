@@ -313,3 +313,23 @@ export function label(key) {
 export function statusLabel(value) {
   return label(value);
 }
+
+const PHASE_COLORS = {
+  rezanje:        "#2980a8",
+  sestavljanje:   "#b07d12",
+  varjenje:       "#b84646",
+  "elektro montaza": "#5568c0",
+  kontrola:       "#2a9264",
+  pakiranje:      "#9450aa",
+  programiranje:  "#3a7abf",
+  lakiranie:      "#c46b20",
+  bruenje:        "#7a6baa"
+};
+
+export function phaseColor(name = "") {
+  const key = name.toLowerCase().trim();
+  if (PHASE_COLORS[key]) return PHASE_COLORS[key];
+  let hash = 0;
+  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+  return `hsl(${hash} 42% 42%)`;
+}

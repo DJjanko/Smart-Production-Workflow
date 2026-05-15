@@ -10,7 +10,7 @@ import { WorkOrderDetailModal } from "../components/WorkOrderDetailModal.jsx";
 import { WorkloadPanel } from "../components/WorkloadPanel.jsx";
 import { WorkOrdersTable } from "../components/WorkOrdersTable.jsx";
 import { formatDate } from "../utils/date.js";
-import { label, statusLabel } from "../utils/i18n.js";
+import { label, statusLabel, phaseColor } from "../utils/i18n.js";
 
 const WORKER_PHASE_STATUS_OPTIONS = [
   { value: "all", labelKey: "allStatuses" },
@@ -221,11 +221,39 @@ export function DashboardPage({ session, dataRefreshKey }) {
         <section className="workerDashboardGrid">
           <div className="surface">
             <div className="sectionHeader"><h2>{label("myWorkOrders")}</h2><span>{myWorkOrders.length}</span></div>
+
+            {myWorkOrders.length > 0 && (() => {
+              const counts = { planned: 0, in_progress: 0, completed: 0, sold: 0, delayed: 0 };
+              myWorkOrders.forEach((o) => { if (counts[o.status] !== undefined) counts[o.status]++; });
+              const total = myWorkOrders.length;
+              const segments = [
+                { key: "planned", color: "#176b87" },
+                { key: "in_progress", color: "#d4850a" },
+                { key: "completed", color: "#6f5aa8" },
+                { key: "sold", color: "#1f7b52" },
+                { key: "delayed", color: "#a13b3f" }
+              ].filter((s) => counts[s.key] > 0);
+              return (
+                <div className="workerPhaseChart">
+                  <div className="phaseChartBar">
+                    {segments.map((s) => (
+                      <div key={s.key} className={`phaseChartSegment`} style={{ width: `${(counts[s.key] / total) * 100}%`, background: s.color }} title={`${statusLabel(s.key)}: ${counts[s.key]}`} />
+                    ))}
+                  </div>
+                  <div className="phaseChartLegend">
+                    {segments.map((s) => (
+                      <span key={s.key}><span className="legendDot" style={{ background: s.color }} />{statusLabel(s.key)} {counts[s.key]}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="entityList">
               {myWorkOrders.map((order) => (
                 <button
                   type="button"
-                  className="entityItem productEntity dashboardClickableRow"
+                  className={`entityItem productEntity dashboardClickableRow status-${order.status}`}
                   key={order._id}
                   onClick={() => setSelectedWorkerWorkOrderId(order._id)}
                 >
@@ -243,6 +271,28 @@ export function DashboardPage({ session, dataRefreshKey }) {
 
           <div className="surface">
             <div className="sectionHeader"><h2>{label("myPhases")}</h2><span>{filteredMyPhases.length} / {myPhases.length}</span></div>
+
+            {myPhases.length > 0 && (() => {
+              const planned = myPhases.filter((p) => p.status === "planned").length;
+              const inProgress = myPhases.filter((p) => p.status === "in_progress").length;
+              const completed = myPhases.filter((p) => p.status === "completed").length;
+              const total = myPhases.length;
+              return (
+                <div className="workerPhaseChart">
+                  <div className="phaseChartBar">
+                    {planned > 0 && <div className="phaseChartSegment planned" style={{ width: `${(planned / total) * 100}%` }} title={`${label("planned")}: ${planned}`} />}
+                    {inProgress > 0 && <div className="phaseChartSegment in_progress" style={{ width: `${(inProgress / total) * 100}%` }} title={`${statusLabel("in_progress")}: ${inProgress}`} />}
+                    {completed > 0 && <div className="phaseChartSegment completed" style={{ width: `${(completed / total) * 100}%` }} title={`${statusLabel("completed")}: ${completed}`} />}
+                  </div>
+                  <div className="phaseChartLegend">
+                    <span><span className="legendDot planned" />{statusLabel("planned")} {planned}</span>
+                    <span><span className="legendDot in_progress" />{statusLabel("in_progress")} {inProgress}</span>
+                    <span><span className="legendDot completed" />{statusLabel("completed")} {completed}</span>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="workerPhaseTools">
               <label className="searchField compactSearch">
                 <Search size={17} />
@@ -258,10 +308,18 @@ export function DashboardPage({ session, dataRefreshKey }) {
             </div>
             <div className="entityList">
               {filteredMyPhases.map((phase) => (
-                <div className="entityItem workerPhaseItem" key={phase._id}>
-                  <div>
+                <div
+                  className={`phaseItem phaseColorItem phase-status-${phase.status}`}
+                  key={phase._id}
+                  style={{ "--phase-color": phaseColor(phase.name) }}
+                >
+                  <div className="phaseTime">
+                    <span>↑ {formatDate(phase.start)}</span>
+                    <span>↓ {formatDate(phase.end)}</span>
+                  </div>
+                  <div className="phaseBody">
                     <strong>{phase.workOrderId?.code || "WO"} / {phase.name}</strong>
-                    <span>{phase.requiredSkill} / {formatDate(phase.start)} - {formatDate(phase.end)}</span>
+                    <span>{phase.requiredSkill}</span>
                   </div>
                   <StatusBadge value={phase.status} />
                 </div>

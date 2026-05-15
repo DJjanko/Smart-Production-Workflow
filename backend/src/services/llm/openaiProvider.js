@@ -1,11 +1,10 @@
 import { buildIntentPrompt } from "./prompt.js";
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:11434";
-const DEFAULT_MODEL = "qwen3:8b";
+const DEFAULT_MODEL = "gpt-4.1-mini";
+const API_URL = "https://api.openai.com/v1/chat/completions";
 
 function extractJson(text) {
   const cleanText = String(text || "")
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
     .replace(/```(?:json)?/gi, "")
     .replace(/```/g, "")
     .trim();
@@ -16,36 +15,37 @@ function extractJson(text) {
     const start = cleanText.indexOf("{");
     const end = cleanText.lastIndexOf("}");
     if (start === -1 || end === -1 || end <= start) {
-      throw new Error("Ollama did not return JSON.");
+      throw new Error("OpenAI did not return valid JSON.");
     }
     return JSON.parse(cleanText.slice(start, end + 1));
   }
 }
 
-export async function interpretWithOllama({ command, products, language = "sl" }) {
-  const baseUrl = process.env.OLLAMA_BASE_URL || DEFAULT_BASE_URL;
-  const model = process.env.OLLAMA_MODEL || DEFAULT_MODEL;
-  const timeoutMs = Number(process.env.OLLAMA_TIMEOUT_MS || 60000);
+export async function interpretWithOpenAI({ command, products, language = "sl" }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not set.");
+
+  const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
+  const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || 30000);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/api/chat`, {
+    const response = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
       signal: controller.signal,
       body: JSON.stringify({
         model,
-        stream: false,
-        format: "json",
-        options: {
-          temperature: 0,
-          top_p: 0.2
-        },
+        temperature: 0,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
-            content: "You are a strict JSON intent parser for a production workflow app."
+            content: "You are a strict JSON intent parser for a production workflow app. Return only valid JSON."
           },
           {
             role: "user",
@@ -62,13 +62,13 @@ export async function interpretWithOllama({ command, products, language = "sl" }
 
     if (!response.ok) {
       const message = await response.text().catch(() => "");
-      throw new Error(`Ollama request failed (${response.status}). ${message}`.trim());
+      throw new Error(`OpenAI request failed (${response.status}). ${message}`.trim());
     }
 
     const data = await response.json();
     return {
-      ...extractJson(data.message?.content),
-      provider: "ollama",
+      ...extractJson(data.choices?.[0]?.message?.content),
+      provider: "openai",
       model
     };
   } finally {

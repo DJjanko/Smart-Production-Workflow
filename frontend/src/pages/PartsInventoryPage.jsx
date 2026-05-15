@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, PackagePlus, PackageX, Pencil, Plus, Save, Search, Send, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { label } from "../utils/i18n.js";
 
@@ -47,6 +48,7 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
   const [showCreatePart, setShowCreatePart] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [partSearch, setPartSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -420,7 +422,7 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
                         </div>
                         {isAdmin && <div className="rowActions">
                           <button className="iconButton" onClick={() => { setEditingPart(partToForm(part)); setEditingStock(inventoryToForm(stock, part._id)); }} aria-label="Uredi del in zalogo"><Pencil size={17} /></button>
-                          <button className="dangerButton" onClick={() => deletePart(part._id)}><Trash2 size={17} /></button>
+                          <button className="dangerButton" onClick={() => setConfirmDelete({ id: part._id, title: `Izbriši del "${part.name}"?`, description: "Trajno bo odstranil rezervni del in njegovo stanje zaloge." })}><Trash2 size={17} /></button>
                           {stock && <button className="dangerButton" onClick={() => deleteStock(stock._id)}><X size={17} /></button>}
                         </div>}
                       </>
@@ -431,6 +433,12 @@ export function PartsInventoryPage({ session, highlightLowStock, supplyAlerts = 
               {filteredParts.length === 0 && <EmptyState label={label("noResults")} />}
             </div>
       </section>
+      <ConfirmDeleteModal
+        title={confirmDelete?.title}
+        description={confirmDelete?.description}
+        onConfirm={() => { deletePart(confirmDelete.id); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </main>
   );
 }

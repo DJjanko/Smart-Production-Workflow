@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardList, Pencil, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { InlineDateTimeMenu, InlineStatusMenu } from "../components/InlineControls.jsx";
 import { OrderDetailModal } from "../components/OrderDetailModal.jsx";
@@ -44,6 +45,7 @@ export function OrdersPage({ session, dataRefreshKey }) {
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -332,7 +334,7 @@ export function OrdersPage({ session, dataRefreshKey }) {
                           </button>
                         )}
                         <button className="iconButton" onClick={(event) => { event.stopPropagation(); setEditingOrder(orderToForm(order)); }} aria-label="Uredi narocilo"><Pencil size={17} /></button>
-                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); handleDelete(order._id); }}><Trash2 size={17} /></button>
+                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); setConfirmDelete({ id: order._id, title: `Izbriši naročilo za "${order.customerName}"?`, description: "Trajno bo odstranil naročilo in morebitne povezane delovne naloge." }); }}><Trash2 size={17} /></button>
                       </div>}
                     </>
                   )}
@@ -346,6 +348,12 @@ export function OrdersPage({ session, dataRefreshKey }) {
         order={selectedOrder}
         workOrders={workOrders}
         onClose={() => setSelectedOrderId(null)}
+      />
+      <ConfirmDeleteModal
+        title={confirmDelete?.title}
+        description={confirmDelete?.description}
+        onConfirm={() => { handleDelete(confirmDelete.id); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
       />
     </main>
   );

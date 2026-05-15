@@ -5,6 +5,7 @@ import { Order } from "../../models/Order.js";
 import { Part } from "../../models/Part.js";
 import { Product } from "../../models/Product.js";
 import { ProductInventory } from "../../models/ProductInventory.js";
+import { SupplyAlert } from "../../models/SupplyAlert.js";
 import { WorkOrder } from "../../models/WorkOrder.js";
 import { WorkOrderPhase } from "../../models/WorkOrderPhase.js";
 import {
@@ -12,7 +13,9 @@ import {
   createWorkOrderOnly,
   findProductByName,
   generateMissingWorkOrderPhases,
-  processCustomerOrder
+  processCustomerOrder,
+  processCustomerOrderItems,
+  processExistingOrder
 } from "../workflowService.js";
 
 export const MCP_TOOLS = [
@@ -45,6 +48,11 @@ export const MCP_TOOLS = [
     name: "create_work_order_only",
     category: "workflow",
     description: "Creates only the base order and work order records without inventory checks or phase assignment."
+  },
+  {
+    name: "process_existing_order",
+    category: "workflow",
+    description: "Converts an existing customer order into a full production work order with inventory check, part ordering, phase generation, and employee assignment."
   },
   {
     name: "get_parts",
@@ -165,6 +173,26 @@ export const MCP_TOOLS = [
     name: "delete_work_order_phase",
     category: "crud_mutation",
     description: "Deletes a work order phase after confirmation."
+  },
+  {
+    name: "get_my_phases",
+    category: "crud_information",
+    description: "Returns work order phases assigned to the current user."
+  },
+  {
+    name: "get_my_work_orders",
+    category: "crud_information",
+    description: "Returns work orders that have phases assigned to the current user."
+  },
+  {
+    name: "create_supply_alert",
+    category: "workflow",
+    description: "Creates a supply alert/notification for a spare part. Available to all users. Optionally include a description."
+  },
+  {
+    name: "get_supply_alerts",
+    category: "crud_information",
+    description: "Lists open supply alerts/notifications. Admin only."
   }
 ];
 
@@ -281,7 +309,8 @@ const CRUD_ENTITY_CONFIG = {
       status: data.status
     }),
     findOne: (args = {}) => ({
-      ...(args.id || args.entityId ? { _id: args.id || args.entityId } : {})
+      ...(args.id || args.entityId ? { _id: args.id || args.entityId } : {}),
+      ...(args._resolvedWorkOrderId && args.name ? { workOrderId: args._resolvedWorkOrderId, name: new RegExp(`^${escapeRegExp(args.name)}$`, "i") } : {})
     })
   }
 };
@@ -703,26 +732,118 @@ async function generateWorkOrderPhases({ args, actor, provider, rawInput, starte
   }
 }
 
-async function processWorkOrder({ args, actor, provider, rawInput }) {
+async function processWorkOrder({ args, actor, provider, rawInput, started }) {
+  if (!hasConfirmation(args)) {
+    const isMulti = Array.isArray(args.items) && args.items.length > 0;
+    const preview = isMulti
+      ? args.items.map((i) => `${i.quantity} x ${i.productName}`).join(", ")
+      : `${args.quantity} x ${args.productName}`;
+    const output = {
+      requiresConfirmation: true,
+      code: "CONFIRMATION_REQUIRED",
+      tool: "process_work_order",
+      arguments: args,
+      message: `Po potrditvi bom ustvaril delovni nalog za ${args.customerName || "AluTech"}: ${preview}.`
+    };
+    await logMcpCall({ actor, provider, toolName: "process_work_order", input: rawInput, output, started });
+    return { statusCode: 200, result: output };
+  }
+
+  // Multiple products via items array
+  if (Array.isArray(args.items) && args.items.length > 0) {
+    const resolvedItems = await Promise.all(
+      args.items.map(async (item) => {
+        if (item.productId) return { productId: item.productId, quantity: Number(item.quantity) };
+        const product = await findProductByName(item.productName);
+        return product ? { productId: product._id, quantity: Number(item.quantity) } : null;
+      })
+    );
+    const items = resolvedItems.filter((item) => item && item.productId && item.quantity > 0);
+    if (!items.length) return { statusCode: 400, result: { code: "MISSING_ITEMS", message: "Nobenega navedenega izdelka nisem nasel v sistemu." } };
+    const result = await processCustomerOrderItems({
+      customerName: args.customerName || "AluTech",
+      items,
+      requestedDeadline: args.requestedDeadline,
+      actor,
+      llmProvider: provider,
+      rawInput
+    });
+    return { statusCode: 201, result };
+  }
+
+  // Single product
   const result = await processCustomerOrder({
     ...args,
     actor,
     llmProvider: provider,
     rawInput
   });
-
   return { statusCode: 201, result };
 }
 
-async function createBasicWorkOrder({ args, actor, provider, rawInput }) {
+async function createBasicWorkOrder({ args, actor, provider, rawInput, started }) {
+  if (!hasConfirmation(args)) {
+    const output = {
+      requiresConfirmation: true,
+      code: "CONFIRMATION_REQUIRED",
+      tool: "create_work_order_only",
+      arguments: args,
+      message: `Po potrditvi bom ustvaril osnovni delovni nalog za ${args.quantity} x ${args.productName} (brez avtomatskega workflowa).`
+    };
+    await logMcpCall({ actor, provider, toolName: "create_work_order_only", input: rawInput, output, started });
+    return { statusCode: 200, result: output };
+  }
+
   const result = await createWorkOrderOnly({
     ...args,
     actor,
     llmProvider: provider,
     rawInput
   });
-
   return { statusCode: 201, result };
+}
+
+async function processExistingOrderTool({ args, actor, provider, rawInput, started }) {
+  const customerName = args.customerName || args.search || args.name;
+  const orderId = args.id || args.orderId || args.entityId;
+
+  if (!hasConfirmation(args)) {
+    const target = customerName || orderId || "narocilo";
+    const output = {
+      requiresConfirmation: true,
+      code: "CONFIRMATION_REQUIRED",
+      tool: "process_existing_order",
+      arguments: args,
+      message: `Po potrditvi bom ustvaril delovni nalog za narocilo: ${target}.`
+    };
+    await logMcpCall({ actor, provider, toolName: "process_existing_order", input: rawInput, output, started });
+    return { statusCode: 200, result: output };
+  }
+
+  let resolvedOrderId = orderId;
+  if (!resolvedOrderId && customerName) {
+    const order = await Order.findOne({ customerName: new RegExp(`^${escapeRegExp(customerName)}$`, "i"), status: { $ne: "completed" } }).lean();
+    if (!order) {
+      const output = { code: "ORDER_NOT_FOUND", message: `Narocila za stranko "${customerName}" nisem nasel ali pa je ze zaklju??eno.` };
+      await logMcpCall({ actor, provider, toolName: "process_existing_order", input: rawInput, output, started });
+      return { statusCode: 404, result: output };
+    }
+    resolvedOrderId = order._id;
+  }
+
+  if (!resolvedOrderId) {
+    return { statusCode: 400, result: { code: "MISSING_TARGET", message: "Potrebujem ime stranke ali id narocila." } };
+  }
+
+  try {
+    const result = await processExistingOrder({ orderId: resolvedOrderId, actor, llmProvider: provider, rawInput });
+    await logMcpCall({ actor, provider, toolName: "process_existing_order", input: rawInput, output: result, started });
+    return { statusCode: 201, result };
+  } catch (err) {
+    const output = { code: "WORKFLOW_ERROR", message: err.message };
+    await logMcpCall({ actor, provider, toolName: "process_existing_order", input: rawInput, output, started });
+    return { statusCode: err.statusCode || 500, result: output };
+  }
 }
 
 async function createCrudWorkOrder({ args, actor, provider, rawInput }) {
@@ -752,28 +873,80 @@ async function createCrudWorkOrder({ args, actor, provider, rawInput }) {
 }
 
 async function createCrudOrder(args = {}) {
-  if (args.productName && args.quantity) {
-    const product = await findProductByName(args.productName);
+  const rawData = { ...args, ...(args.data || {}) };
+  const customerName = rawData.customerName || "AluTech";
+  const requestedDeadline = rawData.requestedDeadline || null;
+  const status = rawData.status || "draft";
+
+  // Single product shortcut
+  if (rawData.productName && rawData.quantity) {
+    const product = await findProductByName(rawData.productName);
     if (!product) {
-      const error = new Error(`Izdelka "${args.productName}" nisem nasel.`);
+      const error = new Error(`Izdelka "${rawData.productName}" nisem nasel.`);
       error.statusCode = 404;
       throw error;
     }
-
-    return Order.create({
-      customerName: args.customerName || args.data?.customerName || "AluTech",
-      items: [{
-        productId: product._id,
-        productName: product.name,
-        quantity: Number(args.quantity)
-      }],
-      requestedDeadline: args.requestedDeadline || args.data?.requestedDeadline || null,
-      status: args.status || args.data?.status || "draft"
-    });
+    return Order.create({ customerName, items: [{ productId: product._id, productName: product.name, quantity: Number(rawData.quantity) }], requestedDeadline, status });
   }
 
-  const payload = cleanObject(CRUD_ENTITY_CONFIG.order.pickData({ ...args, ...(args.data || {}) }));
+  // Multiple items — resolve productName → productId for each
+  const rawItems = Array.isArray(rawData.items) ? rawData.items : [];
+  if (rawItems.length > 0) {
+    const resolvedItems = await Promise.all(
+      rawItems.map(async (item) => {
+        if (item.productId) return { productId: item.productId, productName: item.productName, quantity: Number(item.quantity) };
+        const product = await findProductByName(item.productName);
+        if (!product) return null;
+        return { productId: product._id, productName: product.name, quantity: Number(item.quantity) };
+      })
+    );
+    const validItems = resolvedItems.filter((item) => item && item.productId && item.quantity > 0);
+    if (!validItems.length) {
+      const error = new Error("Nobenega navedenega izdelka nisem nasel v sistemu.");
+      error.statusCode = 404;
+      throw error;
+    }
+    return Order.create({ customerName, items: validItems, requestedDeadline, status });
+  }
+
+  // Fallback raw
+  const payload = cleanObject(CRUD_ENTITY_CONFIG.order.pickData(rawData));
   return Order.create(payload);
+}
+
+async function updateCrudOrder({ config, args, data }) {
+  const targetQuery = config.findOne(args);
+  if (Object.keys(targetQuery).length === 0) {
+    return { statusCode: 400, result: { code: "MISSING_TARGET", message: "Za urejanje narocila potrebujem ime stranke ali id." } };
+  }
+
+  const order = await Order.findOne(targetQuery).populate("items.productId");
+  if (!order) {
+    return { statusCode: 404, result: { code: "NOT_FOUND", message: `Narocila za ${args.customerName || args.id || ""} nisem nasel.` } };
+  }
+
+  if (data.status) order.status = normalizeEnumValue(data.status);
+  if (data.customerName) order.customerName = data.customerName;
+  if (data.requestedDeadline) order.requestedDeadline = data.requestedDeadline;
+
+  if (data.updateItemQuantity) {
+    const { productName, productId, quantity } = data.updateItemQuantity;
+    const qty = Number(quantity);
+    if (!Number.isFinite(qty) || qty < 1) {
+      return { statusCode: 400, result: { code: "MISSING_REQUIRED_FIELDS", message: "Za posodobitev kolicine potrebujem veljavno kolicino (>=1)." } };
+    }
+    const item = order.items.find((i) =>
+      (productId && String(i.productId?._id || i.productId) === String(productId)) ||
+      (productName && normalizeText(i.productName || i.productId?.name || "") === normalizeText(productName))
+    );
+    if (!item) {
+      return { statusCode: 404, result: { code: "ITEM_NOT_FOUND", message: `Artikla ${productName || productId || ""} nisem nasel v narocilu.` } };
+    }
+    item.quantity = qty;
+  }
+
+  await order.save();
+  return { statusCode: 200, result: { item: await Order.findById(order._id).populate("items.productId").lean(), message: `Posodobljeno narocilo za ${order.customerName}.` } };
 }
 
 async function findPartForProductUpdate(addRequiredPart = {}) {
@@ -814,7 +987,7 @@ async function updateCrudProduct({ config, args, data }) {
   }
 
   const directPayload = cleanObject(config.pickData(data));
-  if (directPayload.name !== undefined) product.name = directPayload.name;
+  if (directPayload.name) product.name = directPayload.name;
   if (directPayload.description !== undefined) product.description = directPayload.description;
   if (directPayload.requiredParts !== undefined) product.requiredParts = directPayload.requiredParts;
   if (directPayload.phases !== undefined) product.phases = directPayload.phases;
@@ -848,62 +1021,36 @@ async function updateCrudProduct({ config, args, data }) {
     ).lean();
   }
 
-  if (data.addRequiredPart) {
-    const part = await findPartForProductUpdate(data.addRequiredPart);
-    if (!part) {
-      return {
-        statusCode: 404,
-        result: {
-          code: "PART_NOT_FOUND",
-          message: `Rezervnega dela ${data.addRequiredPart.sku || data.addRequiredPart.partName || ""} nisem nasel. Najprej ga dodajte med rezervne dele.`
-        }
-      };
-    }
+  // addRequiredPart — sprejme eno ali array
+  const partsToAdd = Array.isArray(data.addRequiredPart) ? data.addRequiredPart
+    : Array.isArray(data.addRequiredParts) ? data.addRequiredParts
+    : data.addRequiredPart ? [data.addRequiredPart] : [];
 
-    const quantity = Number(data.addRequiredPart.quantity);
-    if (!Number.isFinite(quantity) || quantity < 1) {
-      return {
-        statusCode: 400,
-        result: {
-          code: "MISSING_REQUIRED_FIELDS",
-          message: "Za dodajanje dela v izdelek potrebujem kolicino dela."
-        }
-      };
-    }
-
-    const existingPart = product.requiredParts.find((requiredPart) => String(requiredPart.partId) === String(part._id));
-    if (existingPart) {
-      existingPart.quantity = quantity;
-    } else {
-      product.requiredParts.push({ partId: part._id, quantity });
-    }
+  for (const partEntry of partsToAdd) {
+    const part = await findPartForProductUpdate(partEntry);
+    if (!part) continue;
+    const qty = Number(partEntry.quantity);
+    if (!Number.isFinite(qty) || qty < 1) continue;
+    const existing = product.requiredParts.find((rp) => String(rp.partId) === String(part._id));
+    if (existing) { existing.quantity = qty; } else { product.requiredParts.push({ partId: part._id, quantity: qty }); }
   }
 
-  if (data.addPhase) {
-    const existingPhaseIndex = product.phases.findIndex((existingPhase) => normalizeText(existingPhase.name) === normalizeText(data.addPhase.name));
-    const existingPhase = existingPhaseIndex >= 0 ? product.phases[existingPhaseIndex] : null;
+  // addPhase — sprejme eno ali array
+  const phasesToAdd = Array.isArray(data.addPhase) ? data.addPhase
+    : Array.isArray(data.addPhases) ? data.addPhases
+    : data.addPhase ? [data.addPhase] : [];
+
+  for (const phaseEntry of phasesToAdd) {
+    const existingIdx = product.phases.findIndex((ep) => normalizeText(ep.name) === normalizeText(phaseEntry.name));
+    const existingPhase = existingIdx >= 0 ? product.phases[existingIdx] : null;
     const phase = {
-      name: data.addPhase.name,
-      requiredSkill: data.addPhase.requiredSkill || existingPhase?.requiredSkill,
-      durationMinutes: Number(data.addPhase.durationMinutes),
-      dependsOn: Array.isArray(data.addPhase.dependsOn) ? data.addPhase.dependsOn : existingPhase?.dependsOn || []
+      name: phaseEntry.name,
+      requiredSkill: phaseEntry.requiredSkill || existingPhase?.requiredSkill,
+      durationMinutes: Number(phaseEntry.durationMinutes),
+      dependsOn: Array.isArray(phaseEntry.dependsOn) ? phaseEntry.dependsOn : existingPhase?.dependsOn || []
     };
-
-    if (!phase.name || !phase.requiredSkill || !Number.isFinite(phase.durationMinutes) || phase.durationMinutes < 1) {
-      return {
-        statusCode: 400,
-        result: {
-          code: "MISSING_REQUIRED_FIELDS",
-          message: "Za dodajanje faze potrebujem ime faze, znanje in trajanje v minutah."
-        }
-      };
-    }
-
-    if (existingPhaseIndex >= 0) {
-      product.phases[existingPhaseIndex] = phase;
-    } else {
-      product.phases.push(phase);
-    }
+    if (!phase.name || !phase.requiredSkill || !Number.isFinite(phase.durationMinutes) || phase.durationMinutes < 1) continue;
+    if (existingIdx >= 0) { product.phases[existingIdx] = phase; } else { product.phases.push(phase); }
   }
 
   await product.save();
@@ -977,7 +1124,13 @@ async function updateCrudEmployee({ config, args, data }) {
 
 async function executeCrudTool({ toolName, action, entity, args = {}, actor, provider, rawInput, started }) {
   const config = CRUD_ENTITY_CONFIG[entity];
-  const data = { ...args, ...(args.data || {}) };
+  const rawData = { ...args, ...(args.data || {}) };
+  const data = {
+    ...rawData,
+    ...(rawData.status !== undefined ? { status: normalizeEnumValue(rawData.status) } : {}),
+    ...(rawData.inventoryStatus !== undefined ? { inventoryStatus: normalizeEnumValue(rawData.inventoryStatus) } : {}),
+    ...(rawData.fulfillmentStatus !== undefined ? { fulfillmentStatus: normalizeEnumValue(rawData.fulfillmentStatus) } : {})
+  };
 
   if (action !== "get" && !hasConfirmation(args)) {
     const previewMessage = buildConfirmationMessage({ action, entity, config, data, args });
@@ -994,7 +1147,18 @@ async function executeCrudTool({ toolName, action, entity, args = {}, actor, pro
   }
 
   if (action === "get") {
+    // For work_order_phase: resolve workOrderCode to workOrderId filter
+    if (entity === "work_order_phase" && (args.workOrderCode || args.code)) {
+      const woCode = args.workOrderCode || args.code;
+      const wo = await WorkOrder.findOne({ code: serializeWorkOrderCode(woCode) }).lean();
+      if (wo) {
+        args = { ...args, _workOrderId: wo._id };
+      }
+    }
     const query = buildCrudSearchQuery(config, args);
+    if (args._workOrderId) {
+      query.$and = [...(query.$and || []), { workOrderId: args._workOrderId }];
+    }
     const rawRows = await maybePopulate(config.model.find(query).sort(config.sort).limit(Number(args.limit) || 25), config.populate).lean();
     const rows = await enrichCrudRows(entity, rawRows);
     const output = {
@@ -1040,6 +1204,23 @@ async function executeCrudTool({ toolName, action, entity, args = {}, actor, pro
       }
     }
 
+    if (entity === "product") {
+      const partsInput = Array.isArray(data.addRequiredPart) ? data.addRequiredPart
+        : Array.isArray(data.addRequiredParts) ? data.addRequiredParts
+        : data.addRequiredPart ? [data.addRequiredPart] : [];
+
+      for (const partEntry of partsInput) {
+        const part = await findPartForProductUpdate(partEntry);
+        if (!part) continue;
+        const qty = Number(partEntry.quantity);
+        if (!Number.isFinite(qty) || qty < 1) continue;
+        created.requiredParts = created.requiredParts || [];
+        const existing = created.requiredParts.find((rp) => String(rp.partId) === String(part._id));
+        if (existing) { existing.quantity = qty; } else { created.requiredParts.push({ partId: part._id, quantity: qty }); }
+      }
+      if (partsInput.length > 0) await created.save();
+    }
+
     const output = {
       item: created,
       message: `Ustvarjen zapis za ${config.label}.`
@@ -1070,6 +1251,12 @@ async function executeCrudTool({ toolName, action, entity, args = {}, actor, pro
         started
       });
       return employeeUpdate;
+    }
+
+    if (entity === "order") {
+      const orderUpdate = await updateCrudOrder({ config, args, data });
+      await logMcpCall({ actor, provider, toolName, input: rawInput, output: orderUpdate.result, started });
+      return orderUpdate;
     }
 
     if (
@@ -1156,6 +1343,29 @@ async function executeCrudTool({ toolName, action, entity, args = {}, actor, pro
   }
   if (entity === "work_order") {
     await WorkOrderPhase.deleteMany({ workOrderId: deleted._id });
+
+    for (const item of deleted.items || []) {
+      // Release finished product reservation
+      const fromStock = Number(item.fromStock) || 0;
+      if (fromStock > 0 && item.productId) {
+        await ProductInventory.findOneAndUpdate(
+          { productId: item.productId },
+          { $inc: { reservedQuantity: -fromStock } }
+        );
+      }
+
+    }
+
+    // Release spare part reservations using stored snapshot
+    for (const reservedPart of deleted.reservedParts || []) {
+      const qty = Number(reservedPart.quantity) || 0;
+      if (qty > 0 && reservedPart.partId) {
+        await Inventory.findOneAndUpdate(
+          { partId: reservedPart.partId },
+          { $inc: { reservedQuantity: -qty, availableQuantity: qty } }
+        );
+      }
+    }
   }
 
   const output = {
@@ -1166,37 +1376,233 @@ async function executeCrudTool({ toolName, action, entity, args = {}, actor, pro
   return { statusCode: 200, result: output };
 }
 
-export async function executeMcpTool({ toolName, args = {}, actor = "admin", provider = "mock", rawInput = {} }) {
+const ENUM_LABELS_SL = {
+  draft: "osnutek", confirmed: "potrjeno", in_production: "v produkciji", completed: "zaključeno", sold: "prodano",
+  planned: "planiran", in_progress: "v procesu", delayed: "zamuja",
+  available: "na voljo", replenished: "dopolnjeno", missing: "manjka",
+  open: "odprto", awaiting_payment: "čaka plačilo", issued: "izdano"
+};
+
+const ENUM_LABELS_SL_REVERSE = Object.fromEntries(
+  Object.entries(ENUM_LABELS_SL).map(([en, sl]) => [sl.toLowerCase(), en])
+);
+
+function normalizeEnumValue(value) {
+  if (!value) return value;
+  const lower = value.toLowerCase().trim();
+  return ENUM_LABELS_SL_REVERSE[lower] || value;
+}
+
+function formatValidationError(err) {
+  if (err.name !== "ValidationError") return null;
+  const messages = Object.values(err.errors).map((e) => {
+    if (e.kind === "enum") {
+      const allowed = (e.properties?.enumValues || [])
+        .map((v) => ENUM_LABELS_SL[v] ? `${v} (${ENUM_LABELS_SL[v]})` : v)
+        .join(", ");
+      return `Polje "${e.path}": vrednost "${e.value}" ni veljavna. Dovoljene vrednosti: ${allowed}.`;
+    }
+    return e.message;
+  });
+  return messages.join(" ");
+}
+
+const ADMIN_ONLY_TOOLS = new Set([
+  "create_product", "update_product", "delete_product",
+  "create_part", "update_part", "delete_part",
+  "create_employee", "update_employee", "delete_employee",
+  "create_order", "update_order", "delete_order",
+  "create_work_order_record", "update_work_order", "delete_work_order",
+  "create_work_order_phase", "delete_work_order_phase",
+  "process_work_order", "create_work_order_only",
+  "process_existing_order", "generate_work_order_phases",
+  "get_supply_alerts"
+]);
+
+export async function executeMcpTool({ toolName, args = {}, actor = "admin", role = "admin", userId = null, provider = "mock", rawInput = {} }) {
   const started = Date.now();
-  const crudTool = CRUD_TOOL_MAP[toolName];
 
-  if (crudTool) {
-    return executeCrudTool({ toolName, ...crudTool, args, actor, provider, rawInput, started });
-  }
+  try {
+    // Permission check
+    if (role !== "admin" && ADMIN_ONLY_TOOLS.has(toolName)) {
+      const output = { code: "FORBIDDEN", message: "Nimate dovoljenja za to akcijo. Zahteva pravice administratorja." };
+      await logMcpCall({ actor, provider, toolName, input: rawInput, output, started });
+      return { statusCode: 403, result: output };
+    }
 
-  if (toolName === "check_inventory" || toolName === "check_product_availability") {
-    return checkProductAvailability({ args, actor, provider, rawInput, started });
-  }
-  if (toolName === "get_employee_workload") {
-    return getEmployeeWorkload({ args, actor, provider, rawInput, started });
-  }
-  if (toolName === "summarize_work_order") {
-    return summarizeWorkOrder({ args, actor, provider, rawInput, started });
-  }
-  if (toolName === "generate_work_order_phases") {
-    return generateWorkOrderPhases({ args, actor, provider, rawInput, started });
-  }
-  if (toolName === "process_customer_order" || toolName === "process_work_order") {
-    return processWorkOrder({ args, actor, provider, rawInput, started });
-  }
-  if (toolName === "create_work_order_only") {
-    return createBasicWorkOrder({ args, actor, provider, rawInput, started });
-  }
+    // Worker: update_work_order_phase only for own phases
+    if (toolName === "update_work_order_phase") {
+      // Resolve workOrderCode + name to _id and also check WO status early
+      let resolvedWo = null;
+      if (args.workOrderCode) {
+        resolvedWo = await WorkOrder.findOne({ code: serializeWorkOrderCode(args.workOrderCode) }).lean();
+      }
 
-  const output = {
-    code: "UNKNOWN_MCP_TOOL",
-    message: `MCP tool "${toolName}" is not available.`
-  };
-  await logMcpCall({ actor, provider, toolName: "unknown_mcp_tool", input: rawInput, output, started });
-  return { statusCode: 400, result: output };
+      // Check work order status BEFORE confirmation — sold/issued WOs are locked
+      const woToCheck = resolvedWo || (args.id || args.entityId
+        ? await WorkOrder.findById((await WorkOrderPhase.findOne({ _id: args.id || args.entityId }).lean())?.workOrderId).lean()
+        : null);
+      if (woToCheck && (woToCheck.status === "sold" || ["sold", "issued"].includes(woToCheck.fulfillmentStatus))) {
+        const output = { code: "LOCKED", message: `Delovni nalog ${woToCheck.code} je zakljucen (${woToCheck.status}) in ga ni mogoce vec urejati.` };
+        await logMcpCall({ actor, provider, toolName, input: rawInput, output, started });
+        return { statusCode: 403, result: output };
+      }
+
+      // Resolve phase _id from workOrderCode + name
+      if (!args.id && !args.entityId && resolvedWo && args.name) {
+        const phase = await WorkOrderPhase.findOne({ workOrderId: resolvedWo._id, name: new RegExp(`^${escapeRegExp(args.name)}$`, "i") }).lean();
+        if (phase) { args = { ...args, id: String(phase._id), _resolvedWorkOrderId: resolvedWo._id }; }
+      }
+
+      // Ownership check for workers
+      if (role !== "admin" && userId) {
+        const phaseForCheck = await WorkOrderPhase.findOne({ _id: args.id || args.entityId }).lean();
+        if (phaseForCheck && String(phaseForCheck.assignedTo) !== String(userId) && phaseForCheck.assignedToName !== actor) {
+          const output = { code: "FORBIDDEN", message: "Lahko urejate samo faze ki so dodeljene vam." };
+          await logMcpCall({ actor, provider, toolName, input: rawInput, output, started });
+          return { statusCode: 403, result: output };
+        }
+      }
+    }
+
+    const crudTool = CRUD_TOOL_MAP[toolName];
+
+    if (crudTool) {
+      return await executeCrudTool({ toolName, ...crudTool, args, actor, provider, rawInput, started });
+    }
+
+    if (toolName === "check_inventory" || toolName === "check_product_availability") {
+      return await checkProductAvailability({ args, actor, provider, rawInput, started });
+    }
+    if (toolName === "get_employee_workload") {
+      return await getEmployeeWorkload({ args, actor, provider, rawInput, started });
+    }
+    if (toolName === "summarize_work_order") {
+      return await summarizeWorkOrder({ args, actor, provider, rawInput, started });
+    }
+    if (toolName === "generate_work_order_phases") {
+      return await generateWorkOrderPhases({ args, actor, provider, rawInput, started });
+    }
+    if (toolName === "process_customer_order" || toolName === "process_work_order") {
+      return await processWorkOrder({ args, actor, provider, rawInput, started });
+    }
+    if (toolName === "create_work_order_only") {
+      return await createBasicWorkOrder({ args, actor, provider, rawInput, started });
+    }
+    if (toolName === "process_existing_order") {
+      return await processExistingOrderTool({ args, actor, provider, rawInput, started });
+    }
+
+    if (toolName === "get_my_phases") {
+      const filter = userId
+        ? { $or: [{ assignedTo: userId }, { assignedToName: actor }] }
+        : { assignedToName: actor };
+      const phases = await WorkOrderPhase.find(filter)
+        .populate("workOrderId", "code")
+        .sort({ start: 1 })
+        .lean();
+      const output = {
+        count: phases.length,
+        items: phases.map((p) => ({
+          id: p._id,
+          workOrder: p.workOrderId?.code || null,
+          name: p.name,
+          requiredSkill: p.requiredSkill,
+          status: p.status,
+          start: p.start,
+          end: p.end
+        })),
+        message: `Najdenih ${phases.length} faz dodeljenih vam.`
+      };
+      await logMcpCall({ actor, provider, toolName, input: rawInput, output: { count: phases.length }, started });
+      return { statusCode: 200, result: output };
+    }
+
+    if (toolName === "get_my_work_orders") {
+      const filter = userId
+        ? { $or: [{ assignedTo: userId }, { assignedToName: actor }] }
+        : { assignedToName: actor };
+      const phases = await WorkOrderPhase.find(filter).select("workOrderId").lean();
+      const workOrderIds = [...new Set(phases.map((p) => String(p.workOrderId)).filter(Boolean))];
+      const workOrders = await WorkOrder.find({ _id: { $in: workOrderIds } })
+        .populate("orderId", "customerName")
+        .sort({ createdAt: -1 })
+        .lean();
+      const output = {
+        count: workOrders.length,
+        items: workOrders.map((wo) => ({
+          id: wo._id,
+          code: wo.code,
+          status: wo.status,
+          customer: wo.orderId?.customerName || null,
+          dueDate: wo.dueDate,
+          items: wo.items?.map((i) => `${i.quantity} x ${i.productName}`).join(", ")
+        })),
+        message: `Najdenih ${workOrders.length} delovnih nalogov z vašimi fazami.`
+      };
+      await logMcpCall({ actor, provider, toolName, input: rawInput, output: { count: workOrders.length }, started });
+      return { statusCode: 200, result: output };
+    }
+
+    if (toolName === "create_supply_alert") {
+      const sku = args.sku || null;
+      const partName = args.partName || args.name || null;
+      const message = args.message || args.description || args.opis || null;
+
+      if (!sku && !partName && !message) {
+        return { statusCode: 400, result: { code: "MISSING_FIELDS", message: "Potrebujem SKU ali ime dela (npr. VI-08) ali opis opozorila." } };
+      }
+
+      const part = await findPartForProductUpdate({ sku, partName });
+      if ((sku || partName) && !part) {
+        return { statusCode: 404, result: { code: "PART_NOT_FOUND", message: `Dela ${sku || partName} nisem nasel. Preverite SKU ali ime.` } };
+      }
+
+      const alertMessage = message || `Opozorilo za del: ${part?.name || partName || sku}`;
+      const alert = await SupplyAlert.create({
+        createdBy: userId || "000000000000000000000000",
+        createdByName: actor,
+        ...(part ? { partId: part._id } : {}),
+        message: alertMessage
+      });
+      const output = {
+        item: alert,
+        message: `Opozorilo je bilo poslano administratorju: "${alertMessage}".`
+      };
+      await logMcpCall({ actor, provider, toolName, input: rawInput, output, started });
+      return { statusCode: 201, result: output };
+    }
+
+    if (toolName === "get_supply_alerts") {
+      const filter = args.status === "resolved" ? { status: "resolved" } : { status: "open" };
+      const alerts = await SupplyAlert.find(filter).populate("partId", "name sku").sort({ createdAt: -1 }).lean();
+      const output = {
+        count: alerts.length,
+        items: alerts.map((a) => ({
+          id: a._id,
+          part: a.partId?.name || null,
+          sku: a.partId?.sku || null,
+          message: a.message,
+          createdBy: a.createdByName,
+          status: a.status,
+          createdAt: a.createdAt
+        })),
+        message: `${alerts.length} odprtih opozoril.`
+      };
+      await logMcpCall({ actor, provider, toolName, input: rawInput, output: { count: alerts.length }, started });
+      return { statusCode: 200, result: output };
+    }
+
+    const output = { code: "UNKNOWN_MCP_TOOL", message: `MCP tool "${toolName}" is not available.` };
+    await logMcpCall({ actor, provider, toolName: "unknown_mcp_tool", input: rawInput, output, started });
+    return { statusCode: 400, result: output };
+  } catch (err) {
+    const validationMessage = formatValidationError(err);
+    if (validationMessage) {
+      const output = { code: "VALIDATION_ERROR", message: validationMessage };
+      await logMcpCall({ actor, provider, toolName, input: rawInput, output, started });
+      return { statusCode: 400, result: output };
+    }
+    throw err;
+  }
 }

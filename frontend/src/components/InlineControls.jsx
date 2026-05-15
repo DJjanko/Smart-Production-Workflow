@@ -57,13 +57,14 @@ export function InlineStatusMenu({ label, value, options, onChange, disabled }) 
           {options.map((option) => (
             <button
               type="button"
-              className={option === value ? "selected" : ""}
+              className={`statusOpt ${option} ${option === value ? "selected" : ""}`}
               key={option}
               onClick={() => {
                 setOpen(false);
                 if (option !== value) onChange(option);
               }}
             >
+              <span className={`statusDot ${option}`} />
               {statusLabel(option)}
             </button>
           ))}

@@ -1,9 +1,9 @@
-import { CalendarDays, CheckCircle2, ClipboardList, Hammer, Pencil, Save, UserRoundCheck, X } from "lucide-react";
+import { CalendarDays, CheckCircle2, ClipboardList, Hammer, Pencil, Save, Tag, UserRoundCheck, X } from "lucide-react";
 import { CustomSelect } from "./CustomSelect.jsx";
 import { EmptyState } from "./EmptyState.jsx";
 import { StatusBadge } from "./StatusBadge.jsx";
 import { formatDate } from "../utils/date.js";
-import { label, statusLabel } from "../utils/i18n.js";
+import { label, statusLabel, phaseColor } from "../utils/i18n.js";
 
 function phaseToForm(phase) {
   return {
@@ -59,13 +59,8 @@ export function WorkOrderDetailModal({
         <section className="workOrderDetailGrid">
           <div className="detailCard">
             <ClipboardList size={18} />
-            <strong>{label("description")}</strong>
+            <strong>Naročeno</strong>
             <span>{description}</span>
-          </div>
-          <div className="detailCard">
-            <CalendarDays size={18} />
-            <strong>Datum</strong>
-            <span>Zacetek: {formatDate(order.startDate)} / rok: {formatDate(order.dueDate)}</span>
           </div>
           <div className="detailCard">
             <UserRoundCheck size={18} />
@@ -73,9 +68,18 @@ export function WorkOrderDetailModal({
             <span>{customerName}</span>
           </div>
           <div className="detailCard">
-            <Hammer size={18} />
-            <strong>Naroceno</strong>
-            <span>{description}</span>
+            <CalendarDays size={18} />
+            <strong>Začetek</strong>
+            <span>{formatDate(order.startDate)}</span>
+            <strong>Rok</strong>
+            <span>{formatDate(order.dueDate)}</span>
+          </div>
+          <div className="detailCard">
+            <Tag size={18} />
+            <strong>Status</strong>
+            <span><StatusBadge value={order.status} /></span>
+            <strong>Zaloga</strong>
+            <span><StatusBadge value={order.inventoryStatus} /></span>
           </div>
         </section>
 
@@ -105,11 +109,17 @@ export function WorkOrderDetailModal({
               const orderedEmployees = [...qualified, ...others];
 
               return (
-                <article className={`phaseDetailCard ${isEditing ? "phaseDetailEditing" : ""}`} key={phase._id}>
+                <article className={`phaseDetailCard phase-status-${phase.status} ${isEditing ? "phaseDetailEditing" : ""}`} key={phase._id} style={{ "--phase-color": phaseColor(phase.name) }}>
                   <div className="phaseDetailHeader">
-                    <div>
+                    <div className="phaseDetailMeta">
+                      <div className="phaseDetailDates">
+                        <span>{formatDate(phase.start)}</span>
+                        <span>{formatDate(phase.end)}</span>
+                      </div>
+                    </div>
+                    <div className="phaseDetailInfo">
                       <strong>{phase.name}</strong>
-                      <span>{phase.requiredSkill} / {formatDate(phase.start)} - {formatDate(phase.end)}</span>
+                      <span>{phase.requiredSkill}</span>
                     </div>
                     <StatusBadge value={phase.status} />
                   </div>
@@ -148,7 +158,7 @@ export function WorkOrderDetailModal({
                     </>
                   ) : (
                     <>
-                      <p>Dodeljeno: {phase.assignedToName || label("noData")}</p>
+                      <p className="phaseAssignee">Dodeljeno: <strong>{phase.assignedToName || label("noData")}</strong></p>
                       {(phase.actualStartedAt || phase.actualCompletedAt) && (
                         <p>
                           {phase.actualStartedAt ? `${label("actualStarted")}: ${formatDate(phase.actualStartedAt)}` : ""}

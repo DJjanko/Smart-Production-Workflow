@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Hammer, Pencil, Play, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { api } from "../api.js";
+import { ConfirmDeleteModal } from "../components/ConfirmDeleteModal.jsx";
 import { EmptyState } from "../components/EmptyState.jsx";
 import { InlineDateTimeMenu, InlineStatusMenu } from "../components/InlineControls.jsx";
 import { OrderItemsEditor, normalizeOrderItems } from "../components/OrderItemsEditor.jsx";
@@ -43,6 +44,7 @@ export function WorkOrdersPage({ session, dataRefreshKey }) {
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState(null);
   const [workOrderSearch, setWorkOrderSearch] = useState("");
   const [workOrderStatusFilter, setWorkOrderStatusFilter] = useState("all");
+  const [confirmDelete, setConfirmDelete] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -364,7 +366,7 @@ export function WorkOrdersPage({ session, dataRefreshKey }) {
 
               return (
                 <div
-                  className={`entityItem ${isEditing ? "entityEditing" : "productEntity"} status-${order.status} ${order.status === "completed" && order.fulfillmentStatus === "awaiting_payment" ? "awaitingPayment" : ""}`}
+                  className={`entityItem ${isEditing ? "entityEditing" : "productEntity"} status-${order.status} ${order.status === "completed" && order.fulfillmentStatus === "awaiting_payment" ? "awaitingPayment" : ""} ${!order.orderId ? "noLinkedOrder" : ""}`}
                   key={order._id}
                   role={isEditing ? undefined : "button"}
                   tabIndex={isEditing ? undefined : 0}
@@ -400,7 +402,10 @@ export function WorkOrdersPage({ session, dataRefreshKey }) {
                   ) : (
                     <>
                       <div>
-                        <strong>{order.code}</strong>
+                        <strong>
+                          {order.code}
+                          {!order.orderId && <span className="noOrderBadge" title="Ni vezanega naročila">· brez naročila</span>}
+                        </strong>
                         <span>{order.items?.map((item) => `${item.quantity} x ${item.productName}`).join(", ")}</span>
                         <p>{label("deadline")}: {formatDate(order.dueDate)} / {label("inventory")}: {statusLabel(order.inventoryStatus)}</p>
                       </div>
@@ -435,7 +440,7 @@ export function WorkOrdersPage({ session, dataRefreshKey }) {
                           </button>
                         )}
                         <button className="iconButton workOrderEditButton" onClick={(event) => { event.stopPropagation(); setEditingWorkOrder(workOrderToForm(order)); }} aria-label="Uredi delovni nalog"><Pencil size={17} /></button>
-                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); deleteWorkOrder(order._id); }}><Trash2 size={17} /></button>
+                        <button className="dangerButton" onClick={(event) => { event.stopPropagation(); setConfirmDelete({ id: order._id, title: `Izbriši delovni nalog "${order.code}"?`, description: "Trajno bo odstranil delovni nalog, faze in rezervacije zaloge." }); }}><Trash2 size={17} /></button>
                       </div>}
                     </>
                   )}
@@ -463,6 +468,12 @@ export function WorkOrdersPage({ session, dataRefreshKey }) {
         loading={loading}
         onApprovePayment={isAdmin ? approvePayment : undefined}
         onClose={() => { setSelectedWorkOrderId(null); setEditingPhase(null); }}
+      />
+      <ConfirmDeleteModal
+        title={confirmDelete?.title}
+        description={confirmDelete?.description}
+        onConfirm={() => { deleteWorkOrder(confirmDelete.id); setConfirmDelete(null); }}
+        onCancel={() => setConfirmDelete(null)}
       />
     </main>
   );

@@ -16,6 +16,13 @@ const workOrderSchema = new mongoose.Schema(
         issuedQuantity: { type: Number, default: 0 }
       }
     ],
+    reservedParts: [
+      {
+        partId: { type: mongoose.Schema.Types.ObjectId, ref: "Part" },
+        partName: String,
+        quantity: Number
+      }
+    ],
     status: { type: String, enum: ["planned", "in_progress", "completed", "sold", "delayed"], default: "planned" },
     startDate: { type: Date, required: true },
     dueDate: { type: Date },

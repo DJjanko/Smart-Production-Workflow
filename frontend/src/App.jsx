@@ -206,7 +206,7 @@ function App() {
     setError("");
   }
 
-  async function runAssistantCommand(event) {
+  async function runAssistantCommand(event, options = {}) {
     event.preventDefault();
     const submittedCommand = command.trim();
     if (!submittedCommand) return;
@@ -216,7 +216,9 @@ function App() {
     setCommand("");
 
     try {
-      const data = await api.runCommand({ command: submittedCommand, provider }, session?.token);
+      const language = localStorage.getItem("spw-language") || "sl";
+      const useGuard = options.useGuard !== false;
+      const data = await api.runCommand({ command: submittedCommand, provider, language, useGuard, naturalResponse: options.naturalResponse ?? false }, session?.token);
       setResult(data);
       appendAssistantMessage({ role: "assistant", response: data, provider, action: data.tool || data.interpreted?.intent });
       refreshAppData();

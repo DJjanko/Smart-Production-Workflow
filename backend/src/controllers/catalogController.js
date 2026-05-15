@@ -838,9 +838,24 @@ export async function deleteUser(req, res, next) {
   }
 }
 
+export async function setActivityAccuracy(req, res, next) {
+  try {
+    const { accurate, accuracyNote } = req.body;
+    const activity = await ActivityLog.findByIdAndUpdate(
+      req.params.id,
+      { accurate: accurate === null ? null : Boolean(accurate), accuracyNote: accuracyNote || "" },
+      { new: true }
+    );
+    if (!activity) return res.status(404).json({ message: "Activity not found." });
+    res.json(activity);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getActivityLog(req, res, next) {
   try {
-    const limit = [30, 50, 100].includes(Number(req.query.limit)) ? Number(req.query.limit) : 30;
+    const limit = [30, 50, 100, 500].includes(Number(req.query.limit)) ? Number(req.query.limit) : 30;
     const filters = {};
 
     if (req.query.mine === "true" && req.user?.name) {

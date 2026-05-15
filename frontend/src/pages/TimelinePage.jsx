@@ -120,6 +120,18 @@ export function TimelinePage({ session, dataRefreshKey }) {
     return source.filter((order) => [order.code, order.status, order.items?.map((item) => item.productName).join(" ")].join(" ").toLowerCase().includes(query));
   }, [workOrders, workOrderSearch, isAdmin, accessibleWorkOrderIds]);
   const currentWeekRange = useMemo(() => getCurrentWeekRange(), []);
+  const weekWorkOrderIds = useMemo(() => {
+    if (dateScope !== "week") return null;
+    return new Set(
+      accessiblePhases
+        .filter((phase) => overlapsRange(phase, currentWeekRange))
+        .map((phase) => String(phase.workOrderId?._id || phase.workOrderId))
+    );
+  }, [accessiblePhases, currentWeekRange, dateScope]);
+  const filteredWorkOrdersWithScope = useMemo(() => {
+    if (!weekWorkOrderIds) return filteredWorkOrders;
+    return filteredWorkOrders.filter((order) => weekWorkOrderIds.has(String(order._id)));
+  }, [filteredWorkOrders, weekWorkOrderIds]);
   const visiblePhases = useMemo(
     () => accessiblePhases.filter((phase) =>
       matchesSelection(phase, selectedWorkOrders, selectedEmployeeFilters) &&
@@ -199,7 +211,7 @@ export function TimelinePage({ session, dataRefreshKey }) {
             <input value={workOrderSearch} onChange={(event) => setWorkOrderSearch(event.target.value)} placeholder={label("searchWorkOrders")} />
           </label>
           <div className="filterChipList">
-            {filteredWorkOrders.map((order) => (
+            {filteredWorkOrdersWithScope.map((order) => (
               <button
                 type="button"
                 className={selectedWorkOrders.includes(String(order._id)) ? "selected" : ""}
@@ -290,7 +302,7 @@ export function TimelinePage({ session, dataRefreshKey }) {
                       {STATUSES.map((candidate) => (
                         <button
                           type="button"
-                          className={candidate === phase.status ? "selected" : ""}
+                          className={`phaseStatusBtn ${candidate}${candidate === phase.status ? " selected" : ""}`}
                           key={candidate}
                           onClick={() => updatePhaseStatus(phase, candidate)}
                           disabled={loadingPhase === phase._id}
@@ -299,7 +311,6 @@ export function TimelinePage({ session, dataRefreshKey }) {
                         </button>
                       ))}
                     </div>
-                    <StatusBadge value={phase.status} />
                   </article>
                 ))}
                 {columnPhases.length === 0 && <EmptyState label={label("noPhases")} />}

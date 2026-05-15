@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, CalendarClock, CheckCircle2, ChevronRight, ClipboardList, Play, X, XCircle } from "lucide-react";
+import { Bot, CalendarClock, CheckCircle2, ChevronRight, ClipboardList, HelpCircle, Play, X, XCircle } from "lucide-react";
 import { EmptyState } from "./EmptyState.jsx";
 import { label } from "../utils/i18n.js";
 
@@ -84,7 +84,7 @@ function renderResultDetails(response) {
 
   return (
     <div className="assistantResultList">
-      {items.slice(0, 12).map((item) => (
+      {items.map((item) => (
         <div className="assistantResultItem" key={item._id || item.id || item.sku || item.name}>
           <strong>{item.customerName || item.name || item.code || item.sku || "Zapis"}</strong>
           {renderItemDetails(item)}
@@ -182,6 +182,14 @@ export function CopilotPanel({
 }) {
   const [activityOpen, setActivityOpen] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [useGuard, setUseGuard] = useState(true);
+  const [naturalResponse, setNaturalResponse] = useState(false);
+
+  function useExample(text) {
+    setCommand(text);
+    setHelpOpen(false);
+  }
   const commandRef = useRef(null);
   const threadRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
@@ -247,12 +255,15 @@ export function CopilotPanel({
                     <span>{message.action || formatDateTime(message.createdAt)}</span>
                   </div>
                   {message.text ? <p>{message.text}</p> : <p>{getResultMessage(message.response)}</p>}
+                  {message.response?.naturalText && (
+                    <p className="naturalResponseText">{message.response.naturalText}</p>
+                  )}
                   {message.response?.result?.workOrder && (
                     <div className="resultSummary">
                       <CheckCircle2 size={18} />
                       <div>
                         <strong>{message.response.result.workOrder.code}</strong>
-                        <span>{message.response.result.phases.length} {label("phasesShort")} - {message.response.result.workOrder.inventoryStatus}</span>
+                        <span>{message.response.result.phases?.length ?? 0} {label("phasesShort")} — {message.response.result.workOrder.inventoryStatus}</span>
                       </div>
                     </div>
                   )}
@@ -288,11 +299,19 @@ export function CopilotPanel({
           ) : null}
         </div>
 
-        <form onSubmit={onRunCommand} className="commandForm">
+        <form onSubmit={(e) => onRunCommand(e, { useGuard, naturalResponse })} className="commandForm">
           <div className="segmented">
             <button type="button" className={provider === "openai" ? "selected" : ""} onClick={() => setProvider("openai")}>OpenAI</button>
             <button type="button" className={provider === "ollama" ? "selected" : ""} onClick={() => setProvider("ollama")}>Ollama</button>
           </div>
+          <label className="guardToggle" title={useGuard ? "Lokalni guard vklopljen" : "Lokalni guard izklopljen"}>
+            <input type="checkbox" checked={useGuard} onChange={(e) => setUseGuard(e.target.checked)} />
+            <span>Guard</span>
+          </label>
+          <label className="guardToggle" title={naturalResponse ? "LLM oblikuje naravni odgovor" : "Strukturiran odgovor (privzeto)"}>
+            <input type="checkbox" checked={naturalResponse} onChange={(e) => setNaturalResponse(e.target.checked)} />
+            <span>LLM odgovor</span>
+          </label>
           <textarea
             ref={commandRef}
             className="commandTextarea"
@@ -318,6 +337,10 @@ export function CopilotPanel({
             <ClipboardList size={17} />
             {label("activityLog")}
             <span>{activities.length}</span>
+          </button>
+          <button type="button" className="activityToggleButton helpToggleButton" onClick={() => setHelpOpen(true)}>
+            <HelpCircle size={17} />
+            Pomoč
           </button>
         </div>
       </aside>
@@ -391,6 +414,113 @@ export function CopilotPanel({
               </div>
 
               <ActivityDetails activity={selectedActivity} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {helpOpen && (
+        <div className="modalOverlay activityModalOverlay" onClick={() => setHelpOpen(false)}>
+          <div className="activityModal helpModal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div>
+                <h2>Pomoč — Assistant chat</h2>
+                <span>Primeri ukazov — klikni za vnos v polje</span>
+              </div>
+              <button type="button" className="iconButton" onClick={() => setHelpOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="helpLayout">
+              <nav className="helpNav">
+                <button type="button" onClick={() => document.getElementById("help-splosno")?.scrollIntoView({ behavior: "smooth" })}>Splošno</button>
+                {["Izdelki","Rezervni deli","Delovni nalogi","Faze","Zaposleni","Naročila","Opozorila","Samo za delavce"].map((s) => (
+                  <button key={s} type="button" onClick={() => document.getElementById(`help-${s.toLowerCase().replace(/\s+/g,"-").replace(/č/g,"c").replace(/š/g,"s").replace(/ž/g,"z").replace(/ó/g,"o")}`)?.scrollIntoView({ behavior: "smooth" })}>
+                    {s}
+                  </button>
+                ))}
+              </nav>
+              <div className="helpContent">
+              <div className="helpSection" id="help-splosno">
+                <h3>Splošno</h3>
+                <p>Asistent razume slovenščino in angleščino. Za mutacije (ustvari/posodobi/izbriši) boš moral potrditi akcijo.</p>
+                <p><strong>OpenAI</strong> — priporočeno za kompleksne ukaze (več faz, več delov) &nbsp;·&nbsp; <strong>Ollama</strong> — hitrejši za enostavne ukaze</p>
+              </div>
+              {[
+                { title: "Izdelki", items: [
+                  { text: "Prikaži vse izdelke", fn: "get_products" },
+                  { text: "Ustvari izdelek Lopata, faze: Sestavljanje, znanje: sestavljanje in trajanje 30 ter brez odvisnosti; Deli 4xVijakM8 (VI-08)", fn: "create_product" },
+                  { text: "Dodaj fazo Rezanje, znanje: rezanje in trajanje 45 min pri Kovinsko ohisje A", fn: "update_product" },
+                  { text: "Spremeni zalogo izdelka Elektricna omarica B na 5", fn: "update_product" },
+                  { text: "Izbriši izdelek Lopata", fn: "delete_product" },
+                ]},
+                { title: "Rezervni deli", items: [
+                  { text: "Prikaži vse rezervne dele", fn: "get_parts" },
+                  { text: "Pokaži rezervni del VI-08", fn: "get_parts" },
+                  { text: "Dodaj rezervni del Vijak M8 (VI-08), kolicina 5", fn: "create_part" },
+                  { text: "Spremeni Vijak M8 (VI-08), zalogo na voljo na 4 in min zalogo na 3", fn: "update_part" },
+                  { text: "Izbriši rezervni del (VI-08)", fn: "delete_part" },
+                ]},
+                { title: "Delovni nalogi", items: [
+                  { text: "Prikaži vse delovne naloge", fn: "get_work_orders" },
+                  { text: "Ali imamo dovolj delov za 5 Kovinsko ohisje A?", fn: "check_product_availability" },
+                  { text: "Naredi delovni nalog za 2 kosa Kovinsko ohisje A za AluTech, rok 21.6.2026", fn: "process_work_order" },
+                  { text: "Naredi novi delovni nalog za FERI, ki ima 3x Pumpa in 2x Kovinsko ohisje A", fn: "process_work_order" },
+                  { text: "Naredi delovni nalog za naročilo BodyFit", fn: "process_existing_order" },
+                  { text: "Ustvari SAMO delovni nalog za 2 kosa Kovinsko ohisje A", fn: "create_work_order_only" },
+                  { text: "Za delovni nalog WO-008 dodaj potrebne faze zaposlenim", fn: "generate_work_order_phases" },
+                  { text: "Spremeni WO-010 status na v procesu", fn: "update_work_order" },
+                  { text: "Povzemi delovni nalog WO-004", fn: "summarize_work_order" },
+                  { text: "Izbriši delovni nalog WO-012", fn: "delete_work_order" },
+                ]},
+                { title: "Faze", items: [
+                  { text: "Prikaži faze delovnega naloga WO-004", fn: "get_work_order_phases" },
+                  { text: "Posodobi status faze WO-004 / Varjenje na zaključeno", fn: "update_work_order_phase" },
+                  { text: "Označi fazo Rezanje pri WO-002 kot v procesu", fn: "update_work_order_phase" },
+                  { text: "Izbriši fazo Rezanje pri WO-002", fn: "delete_work_order_phase" },
+                ]},
+                { title: "Zaposleni", items: [
+                  { text: "Prikaži vse zaposlene", fn: "get_employees" },
+                  { text: "Dodaj zaposlenega Jana Novak, znanja: rezanje, varjenje", fn: "create_employee" },
+                  { text: "Uredi zaposlenega Marko Reznik, dodaj mu znanje: programiranje", fn: "update_employee" },
+                  { text: "Kateri zaposleni je najbolj zaseden?", fn: "get_employee_workload" },
+                  { text: "Izbriši zaposlenega Jana Novak", fn: "delete_employee" },
+                ]},
+                { title: "Naročila", items: [
+                  { text: "Prikaži naročila za AluTech", fn: "get_orders" },
+                  { text: "Ustvari naročilo za podjetje Rutar, 3x Kovinsko ohisje A, rok 30.6.2026", fn: "create_order" },
+                  { text: "Uredi naročilo BodyFit, Spremeni količino Lopata na 3", fn: "update_order" },
+                  { text: "Uredi naročilo BodyFit, rok: 30.6.2026 23:00", fn: "update_order" },
+                  { text: "Naredi delovni nalog za naročilo BodyFit", fn: "process_existing_order" },
+                  { text: "Izbriši naročilo za Rutar", fn: "delete_order" },
+                ]},
+                { title: "Opozorila", items: [
+                  { text: "Prikaži vsa opozorila", fn: "get_supply_alerts" },
+                  { text: "Opozori admina - manjkajo DIN letev", fn: "create_supply_alert" },
+                  { text: "Ustvari opozorilo za vijak VI-08, opis: zmankuje pri montazi", fn: "create_supply_alert" },
+                ]},
+                { title: "Samo za delavce", items: [
+                  { text: "Prikaži moje faze", fn: "get_my_phases" },
+                  { text: "Prikaži moje delovne naloge", fn: "get_my_work_orders" },
+                  { text: "Opozori admina - manjkajo DIN letev", fn: "create_supply_alert" },
+                ]},
+              ].map(({ title, items }) => {
+                const sectionId = `help-${title.toLowerCase().replace(/\s+/g,"-").replace(/č/g,"c").replace(/š/g,"s").replace(/ž/g,"z").replace(/ó/g,"o")}`;
+                return (
+                  <div className="helpSection" key={title} id={sectionId}>
+                    <h3>{title}</h3>
+                    {items.map(({ text, fn }) => (
+                      <button key={text} type="button" className="helpExample" onClick={() => useExample(text)} title="Klikni za vnos">
+                        <span className="helpExampleText">{text}</span>
+                        <span className="helpExampleFn">{fn}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+              <div className="helpSection">
+                <h3>Statusi (slovensko)</h3>
+                <p>osnutek · potrjeno · v produkciji · zaključeno · prodano · planirano · v procesu · zamuja</p>
+              </div>
+              </div>
             </div>
           </div>
         </div>

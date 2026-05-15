@@ -22,6 +22,7 @@ import {
   deleteWorkOrder,
   deleteWorkOrderPhase,
   getActivityLog,
+  setActivityAccuracy,
   getEmployees,
   getInventory,
   getMe,
@@ -86,3 +87,4 @@ catalogRouter.route("/supply-alerts").get(adminOnly, getSupplyAlerts).post(authe
 catalogRouter.route("/supply-alerts/:id/resolve").put(adminOnly, resolveSupplyAlert);
 
 catalogRouter.get("/activity-log", authenticate, getActivityLog);
+catalogRouter.patch("/activity-log/:id/accuracy", authenticate, setActivityAccuracy);

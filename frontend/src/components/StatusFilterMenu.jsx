@@ -38,13 +38,14 @@ export function StatusFilterMenu({
           {options.map((option) => (
             <button
               type="button"
-              className={option.value === value ? "selected" : ""}
+              className={`${option.value !== "all" ? `statusOpt ${option.value}` : ""} ${option.value === value ? "selected" : ""}`}
               key={option.value}
               onClick={() => {
                 onChange(option.value);
                 setOpen(false);
               }}
             >
+              {option.value !== "all" && <span className={`statusDot ${option.value}`} />}
               {option.label}
             </button>
           ))}

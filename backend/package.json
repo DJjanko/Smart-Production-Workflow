@@ -8,7 +8,8 @@
     "dev": "node --watch src/server.js",
     "mcp": "node src/mcp/server.js",
     "start": "node src/server.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "seed2": "node src/seed2.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

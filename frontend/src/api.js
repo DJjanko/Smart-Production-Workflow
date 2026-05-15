@@ -13,7 +13,7 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data?.message || data?.interpreted?.message || "Request failed.");
+    throw new Error(data?.message || data?.result?.message || data?.interpreted?.message || "Request failed.");
   }
 
   return data;
@@ -76,6 +76,7 @@ export const api = {
   createSupplyAlert: (body, token) => request("/supply-alerts", { method: "POST", body, token }),
   resolveSupplyAlert: (id, token) => request(`/supply-alerts/${id}/resolve`, { method: "PUT", token }),
   activityLog: (params, token) => request(`/activity-log${toQuery(params)}`, { token }),
+  setActivityAccuracy: (id, body, token) => request(`/activity-log/${id}/accuracy`, { method: "PATCH", body, token }),
   runCommand: (body, token) => request("/ai/commands", { method: "POST", body, token }),
   pendingActions: (token) => request("/ai/pending-actions", { token }),
   acceptPendingAction: (id, token) => request(`/ai/pending-actions/${id}/accept`, { method: "PUT", token }),

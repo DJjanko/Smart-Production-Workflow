@@ -3,6 +3,7 @@ import { PendingMcpAction } from "../models/PendingMcpAction.js";
 import { executeMcpTool } from "../services/mcp/tools.js";
 import { interpretCommand } from "../services/workflowService.js";
 import { interpretCommandWithProvider } from "../services/llm/index.js";
+import { formatMcpResponse } from "../services/llm/responseFormatter.js";
 
 const PENDING_ACTION_TTL_MS = 30 * 60 * 1000;
 
@@ -38,10 +39,12 @@ export async function runCommand(req, res, next) {
   const started = Date.now();
 
   try {
-    const { command, provider = process.env.LLM_DEFAULT_PROVIDER || "mock" } = req.body;
+    const { command, provider = process.env.LLM_DEFAULT_PROVIDER || "mock", language = "sl", useGuard = true, naturalResponse = false } = req.body;
     const interpreted = await interpretCommandWithProvider({
       command: command || "",
       provider,
+      language,
+      useGuard: useGuard !== false,
       fallback: interpretCommand
     });
 
@@ -50,6 +53,8 @@ export async function runCommand(req, res, next) {
         toolName: interpreted.intent,
         args: interpreted.args,
         actor: req.user.name || "admin",
+        role: req.user.role || "worker",
+        userId: req.user.sub,
         provider,
         rawInput: { command, interpreted }
       });
@@ -57,11 +62,41 @@ export async function runCommand(req, res, next) {
         ? await createPendingAction({ req, provider, command, interpreted, result: toolResult.result })
         : null;
 
+      let naturalText = null;
+      if (naturalResponse && !pendingAction && toolResult.statusCode < 300) {
+        naturalText = await formatMcpResponse({
+          command,
+          intent: interpreted.intent,
+          result: toolResult.result,
+          provider,
+          language
+        });
+        if (naturalText) {
+          await ActivityLog.create({
+            actor: req.user.name || "admin",
+            action: "llm_natural_response",
+            llmProvider: provider,
+            mcpTool: interpreted.intent,
+            input: { command },
+            output: { naturalText },
+            durationMs: 0
+          });
+        }
+      }
+
+      // Patch the last activity log entry with guard/naturalResponse flags
+      await ActivityLog.findOneAndUpdate(
+        { mcpTool: interpreted.intent, actor: req.user.name || "admin" },
+        { $set: { useGuard: useGuard !== false, naturalResponse: Boolean(naturalResponse) } },
+        { sort: { createdAt: -1 } }
+      );
+
       return res.status(toolResult.statusCode).json({
         interpreted,
         tool: interpreted.intent,
         result: toolResult.result,
-        pendingAction
+        pendingAction,
+        naturalText
       });
     }
 
@@ -112,6 +147,8 @@ export async function acceptPendingAction(req, res, next) {
       toolName: action.toolName,
       args: { ...action.args, confirmed: true },
       actor: req.user.name || action.actor || "admin",
+      role: req.user.role || "worker",
+      userId: req.user.sub,
       provider: action.provider,
       rawInput: {
         source: "pending_action_accept",

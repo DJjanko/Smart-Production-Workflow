@@ -9,7 +9,7 @@ import { authenticate, requireRole } from "../middleware/auth.js";
 
 export const aiRouter = express.Router();
 
-aiRouter.post("/commands", authenticate, requireRole("admin"), runCommand);
-aiRouter.get("/pending-actions", authenticate, requireRole("admin"), getPendingActions);
-aiRouter.put("/pending-actions/:id/accept", authenticate, requireRole("admin"), acceptPendingAction);
-aiRouter.put("/pending-actions/:id/decline", authenticate, requireRole("admin"), declinePendingAction);
+aiRouter.post("/commands", authenticate, runCommand);
+aiRouter.get("/pending-actions", authenticate, getPendingActions);
+aiRouter.put("/pending-actions/:id/accept", authenticate, acceptPendingAction);
+aiRouter.put("/pending-actions/:id/decline", authenticate, declinePendingAction);
