@@ -105,6 +105,22 @@ npm run seed2
 
 ### 4. Zagon
 
+#### Hitri zagon (en ukaz)
+
+```powershell
+.\start.ps1
+```
+
+Odpre ločena terminalna okna za Ollama, Backend, MCP server in Frontend.
+
+```powershell
+.\start.ps1 -NoOllama        # brez Ollame (če že teče)
+.\start.ps1 -NoMcp           # brez MCP serverja
+.\start.ps1 -NoOllama -NoMcp # samo backend + frontend
+```
+
+#### Ročni zagon
+
 **Terminal 1 — Backend:**
 ```bash
 cd backend
