@@ -15,6 +15,7 @@ import { ProductsPage } from "./pages/ProductsPage.jsx";
 import { SettingsPage } from "./pages/SettingsPage.jsx";
 import { TimelinePage } from "./pages/TimelinePage.jsx";
 import { WorkOrdersPage } from "./pages/WorkOrdersPage.jsx";
+import { AboutPage } from "./pages/AboutPage.jsx";
 import { label } from "./utils/i18n.js";
 
 function NotificationCenter({ alerts, isAdmin, onOpenAlert, onResolveAlert }) {
@@ -85,6 +86,7 @@ function App() {
     const raw = localStorage.getItem("spw-session");
     return raw ? JSON.parse(raw) : null;
   });
+  const [showAbout, setShowAbout] = useState(false);
   const [login, setLogin] = useState({ email: "admin", password: "admin" });
   const [activePage, setActivePage] = useState("dashboard");
   const [assistantOpen, setAssistantOpen] = useState(true);
@@ -275,6 +277,9 @@ function App() {
   }
 
   if (!session) {
+    if (showAbout) {
+      return <AboutPage onBack={() => setShowAbout(false)} onLogin={() => setShowAbout(false)} />;
+    }
     return (
       <LandingPage
         error={error}
@@ -282,6 +287,7 @@ function App() {
         login={login}
         setLogin={setLogin}
         onLogin={handleLogin}
+        onAbout={() => setShowAbout(true)}
       />
     );
   }

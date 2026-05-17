@@ -367,14 +367,18 @@ export function CopilotPanel({
                 <div className="activityFilters">
                   <label>
                     Prikaz
-                    <select
-                      value={activityFilters.limit}
-                      onChange={(event) => onActivityFiltersChange?.({ limit: Number(event.target.value) })}
-                    >
-                      <option value={30}>30</option>
-                      <option value={50}>50</option>
-                      <option value={100}>100</option>
-                    </select>
+                    <div className="segmented activityLimitSegmented">
+                      {[30, 50, 100].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          className={activityFilters.limit === n ? "selected" : ""}
+                          onClick={() => onActivityFiltersChange?.({ limit: n })}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
                   </label>
                   <label>
                     Datum

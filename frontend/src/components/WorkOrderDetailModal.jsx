@@ -131,6 +131,7 @@ export function WorkOrderDetailModal({
                           value={editingPhase.status}
                           options={phaseStatusOptions}
                           onChange={(status) => setEditingPhase({ ...editingPhase, status })}
+                          phaseColors
                         />
                       </div>
                       {isAdmin && <div className="assigneeGrid">

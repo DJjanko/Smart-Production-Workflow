@@ -13,7 +13,7 @@ const techLogos = [
   { node: <SiOpenai />, title: "OpenAI API", ariaLabel: "OpenAI API" }
 ];
 
-export function LandingPage({ error, loading, login, setLogin, onLogin }) {
+export function LandingPage({ error, loading, login, setLogin, onLogin, onAbout }) {
   return (
     <main className="landingPage">
       <div className="landingSilk" aria-hidden="true">
@@ -48,8 +48,7 @@ export function LandingPage({ error, loading, login, setLogin, onLogin }) {
             <img src={logo} alt="Smart Production Workflow logo" />
           </span>
           <div className="landingNavActions">
-            <button type="button">Home</button>
-            <button type="button">Sign in</button>
+            <span className="landingNavTagline">AI-Powered Production Workflow</span>
           </div>
         </nav>
       </GlassSurface>
@@ -78,7 +77,7 @@ export function LandingPage({ error, loading, login, setLogin, onLogin }) {
             </label>
             <label>
               Password
-              <input type="password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} />
+              <input type="password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} autoComplete="off" />
             </label>
             <div className="landingActions">
               <button className="primary landingButton" disabled={loading}>
@@ -102,7 +101,7 @@ export function LandingPage({ error, loading, login, setLogin, onLogin }) {
                 blueOffset={20}
                 className="landingSecondaryGlass"
               >
-                <button type="button" className="landingSecondaryButton">O projektu</button>
+                <button type="button" className="landingSecondaryButton" onClick={onAbout}>O projektu</button>
               </GlassSurface>
             </div>
           </form>

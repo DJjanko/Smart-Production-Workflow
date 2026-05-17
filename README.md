@@ -63,7 +63,13 @@ npm install
 
 ### 2. Okolje (backend)
 
-Ustvari `backend/.env`:
+Kopiraj predlogo in dopolni s svojimi vrednostmi:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Uredi `backend/.env` — obvezno nastavi `OPENAI_API_KEY` če hočeš OpenAI (sicer samo Ollama deluje):
 
 ```env
 PORT=3000
@@ -92,6 +98,9 @@ npm run seed
 
 # Razširjeni seed za diplomsko nalogo (4 produkti, 8 delov, 5 zaposlenih)
 npm run seed2
+
+# Prazna baza — samo users in zaposleni, brez podatkov
+npm run seed:empty
 ```
 
 **Demo prijava po seedu:**
@@ -152,10 +161,37 @@ ollama serve
 ollama pull qwen3:8b
 ```
 
-Preverite:
+#### Preverite stanje
+
 ```bash
-ollama list
+ollama list    # nameščeni modeli
+ollama ps      # trenutno naloženi modeli v RAM
+```
+
+#### Model naložen v RAM (hitrejši odziv)
+
+Da model ostane naložen v RAM za vedno (brez timeout-a):
+
+```powershell
+Invoke-RestMethod -Method Post -Uri "http://localhost:11434/api/generate" -ContentType "application/json" -Body (@{ model = "qwen3:8b"; keep_alive = -1 } | ConvertTo-Json -Compress)
+```
+
+#### Razložite model iz RAM
+
+```powershell
+ollama stop qwen3:8b
+```
+
+#### Preverite ali je model naložen
+
+```powershell
 ollama ps
+```
+
+Primer izhoda ko je model naložen:
+```
+NAME        ID              SIZE      PROCESSOR          CONTEXT    UNTIL
+qwen3:8b    500a1f067a9f    6.6 GB    13%/87% CPU/GPU    8192       Forever
 ```
 
 ---

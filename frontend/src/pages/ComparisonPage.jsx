@@ -93,7 +93,7 @@ function ActivityDetail({ activity, onClose, onAccuracy, token }) {
               onChange={(e) => setNote(e.target.value)}
               rows={2}
             />
-            <button type="button" className="primary" onClick={() => save(activity.accurate)} disabled={saving} style={{marginTop:4}}>Shrani opombo</button>
+            <button type="button" className="primary saveNoteBtn" onClick={() => save(activity.accurate)} disabled={saving}>Shrani opombo</button>
           </div>
         </div>
       </div>

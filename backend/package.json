@@ -9,7 +9,8 @@
     "mcp": "node src/mcp/server.js",
     "start": "node src/server.js",
     "seed": "node src/seed.js",
-    "seed2": "node src/seed2.js"
+    "seed2": "node src/seed2.js",
+    "seed:empty": "node src/seed_empty.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

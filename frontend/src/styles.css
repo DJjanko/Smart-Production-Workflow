@@ -645,6 +645,17 @@ select:focus {
   background: #176b87;
 }
 
+/* Phase colored dropdown in CustomSelect */
+.customSelectMenu button.phaseOpt { display: flex !important; align-items: center !important; gap: 8px !important; border-radius: 6px !important; padding: 7px 10px !important; text-align: left !important; }
+.customSelectMenu button.phaseOpt.planned     { color: #176b87 !important; background: #eef8fb !important; box-shadow: inset 3px 0 0 #176b87 !important; }
+.customSelectMenu button.phaseOpt.in_progress { color: #7a4d06 !important; background: #fff8e8 !important; box-shadow: inset 3px 0 0 #d4850a !important; }
+.customSelectMenu button.phaseOpt.completed   { color: #1a5e3f !important; background: #edf8f3 !important; box-shadow: inset 3px 0 0 #1f7b52 !important; }
+.customSelectMenu button.phaseOpt:hover       { color: #fff !important; background: #176b87 !important; box-shadow: inset 3px 0 0 #0c3f50 !important; }
+.customSelectMenu button.phaseOpt.selected    { color: #fff !important; background: #176b87 !important; box-shadow: inset 3px 0 0 #0c3f50 !important; }
+.customSelectMenu button.phaseOpt .phaseIndicator { flex-shrink: 0; }
+.customSelectMenu button.phaseOpt.selected .phaseIndicator,
+.customSelectMenu button.phaseOpt:hover .phaseIndicator { background: rgba(255,255,255,0.85) !important; }
+
 /* Status colored dropdown */
 .statusDot {
   display: inline-block;
@@ -791,6 +802,14 @@ select:focus {
 .accuracyBtn.correct:hover  { background: #eaf7f0; }
 .accuracyBtn.incorrect:hover { background: #fdf0f0; }
 .accuracyNote { width: 100%; padding: 8px; border: 1px solid #d8e1e4; border-radius: 6px; font-size: 0.84rem; resize: vertical; }
+
+.saveNoteBtn {
+  justify-self: start !important;
+  padding: 8px 20px !important;
+  font-size: 0.84rem !important;
+  margin-top: 4px;
+  width: auto !important;
+}
 
 .statsTableWrap { overflow-x: auto; }
 .statsTable { width: 100%; border-collapse: collapse; font-size: 0.84rem; table-layout: fixed; }
@@ -1095,11 +1114,23 @@ select:focus {
 .legendDot.completed   { background: #1f7b52; }
 
 .workerPhaseTools {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 154px auto;
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   margin-bottom: 10px;
+}
+
+.workerPhaseTools .compactSearch {
+  flex: 1;
+  min-width: 160px;
+}
+
+.workerPhaseDateFilter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .workerPhaseTools .compactSearch {
@@ -3495,6 +3526,11 @@ pre {
   padding-bottom: 8px;
 }
 
+.activityLimitSegmented {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 4px;
+}
+
 .activityMineFilter {
   grid-column: 1 / -1;
   min-height: 34px;
@@ -3753,6 +3789,14 @@ pre {
   display: inline-flex;
   align-items: center;
   gap: 20px;
+}
+
+.landingNavTagline {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
 }
 
 .landingNavActions button,
@@ -4095,3 +4139,229 @@ pre {
     width: 100% !important;
   }
 }
+
+/* ── About Page ────────────────────────────────────── */
+.aboutSilkBg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.aboutPage {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  color: #ffffff;
+  scrollbar-color: rgba(255,255,255,0.62) transparent;
+  scrollbar-gutter: stable;
+}
+
+.aboutPage::-webkit-scrollbar { width: 10px; }
+.aboutPage::-webkit-scrollbar-track { background: transparent; border-radius: 999px; }
+.aboutPage::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(82,39,255,0.72));
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+.aboutHeader {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 32px;
+  background: rgba(9, 5, 17, 0.7);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.aboutLogo { height: 36px; }
+
+.aboutBackBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.8);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+.aboutBackBtn:hover { background: rgba(255,255,255,0.08); }
+
+.aboutLoginBtn { padding: 9px 18px; }
+
+.aboutMain { position: relative; z-index: 1; }
+
+/* Hero */
+.aboutHero {
+  text-align: center;
+  padding: 90px 32px 70px;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.aboutSupertitle {
+  font-size: 0.85rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 12px;
+}
+.aboutTitle {
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  font-weight: 900;
+  line-height: 1.1;
+  margin-bottom: 18px;
+}
+.aboutSubtitle {
+  font-size: 1.1rem;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.6;
+  max-width: 560px;
+  margin: 0 auto 24px;
+}
+.aboutBadges {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.aboutBadges span {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  font-weight: 750;
+  color: rgba(255,255,255,0.8);
+}
+
+/* Sections */
+.aboutSection {
+  padding: 60px 32px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.aboutSection:nth-child(odd)  { background: rgba(0,0,0,0.62); }
+.aboutSection:nth-child(even) { background: rgba(0,0,0,0.50); }
+.aboutSectionInner { max-width: 1080px; margin: 0 auto; }
+.aboutSection h2 {
+  font-size: 1.8rem;
+  font-weight: 850;
+  margin-bottom: 16px;
+  color: #ffffff;
+}
+.aboutSection p {
+  color: rgba(255,255,255,0.7);
+  line-height: 1.7;
+  font-size: 1rem;
+  margin-bottom: 14px;
+  max-width: 720px;
+}
+
+.aboutArchBox {
+  margin-top: 20px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 14px 20px;
+  display: inline-block;
+}
+.aboutArchBox code {
+  font-size: 0.9rem;
+  color: #7dd3fc;
+  letter-spacing: 0.02em;
+}
+
+/* Features */
+.aboutFeatureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+.aboutFeatureCard {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 24px;
+  transition: background 0.2s;
+}
+.aboutFeatureCard:hover { background: rgba(255,255,255,0.09); }
+.aboutFeatureIcon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(23,107,135,0.25);
+  border-radius: 10px;
+  color: #7dd3fc;
+  margin-bottom: 14px;
+}
+.aboutFeatureCard h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: #ffffff;
+}
+.aboutFeatureCard p {
+  font-size: 0.875rem;
+  color: rgba(255,255,255,0.65);
+  line-height: 1.6;
+  margin: 0;
+  max-width: none;
+}
+
+/* Stack */
+.aboutStackGrid {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.aboutStackItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 16px 22px;
+  min-width: 110px;
+}
+.aboutStackItem strong { font-size: 0.95rem; color: #ffffff; }
+.aboutStackItem span { font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+
+/* CTA */
+.aboutCta {
+  text-align: center;
+  padding: 80px 32px;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-top: 1px solid rgba(23,107,135,0.3);
+}
+.aboutCta h2 { font-size: 1.8rem; font-weight: 850; margin-bottom: 10px; }
+.aboutCta p { color: rgba(255,255,255,0.65); margin-bottom: 16px; }
+.aboutCtaCredentials {
+  display: inline-block;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 8px 18px;
+  margin-bottom: 20px;
+}
+.aboutCtaCredentials code { color: #7dd3fc; font-size: 0.95rem; }
+.aboutCtaBtn { padding: 12px 28px; font-size: 1rem; display: inline-flex; align-items: center; gap: 8px; }
