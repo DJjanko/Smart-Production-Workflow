@@ -80,12 +80,30 @@ if (!showAllFlags) {
   - `LLM ✓` / `LLM ✗` — ali je bil naravni odgovor vklopljen
 - Barvni razredi: `guardTag`, `noGuardTag`, `llmTag`, `llmOffTag`
 
-### Bar chart — vizualne izboljšave
-- **Diagonalne oznake funkcij** — `writing-mode: vertical-rl` + `transform: rotate(180deg)` za berljive navpične oznake
-- **Manjše vrstice** — višina palice zmanjšana za kompaktnejši prikaz
-- **Zebra ozadje** — vsaka druga MCP funkcija ima rahlo drugačen odtenek ozadja
-- **Odstranjene besedilne oznake** (`Ollama` / `OpenAI`) ob vsaki vrstici — samo barva loči providerja
-- **Manjše stat kartice** — glava ComparisonPage (OpenAI/Ollama/mock bloki) je kompaktnejša
+### Bar chart — popoln redizajn (navpični stolpčni diagram)
+- **Orientacija spremenjena**: horizontalni → **navpični** diagram (stolpci rastejo navzgor)
+- **Osi zamenjani**: X-os = MCP funkcije (37), Y-os = vrednost metrike
+- **Diagonalne oznake** (`transform: rotate(45deg)`) pod osnovno linijo — prihrani vertikalni prostor
+- **Zebra ozadje** — vsaka druga MCP funkcija (stolpec) z rahlo drugačnim odtenkom
+- **Odstranjene besedilne oznake** `Ollama` / `OpenAI` ob vsaki palici — samo barva + legenda
+- **Horizontalno drsenje** — pomik vodoravno ko 37 funkcij ne ustreza širini
+- **Tooltip** — `title` atribut na vsaki palici pokaže vrednost ob hoverju
+- **Višina diagrama**: 240px, **širina stolpca**: 32px, **palica**: 12px na provider
+- CSS razredi: `.barChartScrollWrap`, `.barChartCanvas`, `.barChartFnCol`, `.barChartFnBars`, `.barChartFnBar`, `.barChartFnName`
+
+### Kompaktne stat kartice (`compactMetrics`)
+- Glava ComparisonPage (OpenAI / mock / Ollama bloki) zmanjšana za ~50%
+- Padding: `14px → 7px`, ikona: `36px → 22px`, font: `1.45rem → 0.95rem`
+
+### Tabela (drugi pogled) — združena po providerju
+- **Pred:** dve ločeni tabeli vzporedno, MCP funkcija v vsaki
+- **Po:** ena tabela, MCP funkcija **samo enkrat levo**, nato barvne sekcije:
+  - **OpenAI** — modra glava (`#1a8fc1`), subtilno modro ozadje celic
+  - **Ollama** — oranžna glava (`#d4850a`), subtilno oranžno ozadje celic
+- Stolpci po providerju: `N | ms | ✓ | ✗ | % | ⭐ | 📖`
+- `table-layout: fixed`: MCP funkcija = 15%, Ollama = 15%, OpenAI = ~70%
+- `max-width: 0` trik za `text-overflow: ellipsis` v fiksnih tabelah
+- CSS razredi: `.mergedStatsTable`, `.mstFnCol`, `.mstUntested`
 
 ### Rezervacija delov — shramba posnetka
 - Ob ustvarjanju delovnega naloga se shrani `reservedParts[]` (snapshot kateri in koliko delov je bilo rezerviranih)
