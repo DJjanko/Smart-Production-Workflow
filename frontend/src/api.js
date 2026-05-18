@@ -77,6 +77,7 @@ export const api = {
   resolveSupplyAlert: (id, token) => request(`/supply-alerts/${id}/resolve`, { method: "PUT", token }),
   activityLog: (params, token) => request(`/activity-log${toQuery(params)}`, { token }),
   setActivityAccuracy: (id, body, token) => request(`/activity-log/${id}/accuracy`, { method: "PATCH", body, token }),
+  setActivityScores: (id, body, token) => request(`/activity-log/${id}/accuracy`, { method: "PATCH", body, token }),
   runCommand: (body, token) => request("/ai/commands", { method: "POST", body, token }),
   pendingActions: (token) => request("/ai/pending-actions", { token }),
   acceptPendingAction: (id, token) => request(`/ai/pending-actions/${id}/accept`, { method: "PUT", token }),

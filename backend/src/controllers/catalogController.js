@@ -840,12 +840,23 @@ export async function deleteUser(req, res, next) {
 
 export async function setActivityAccuracy(req, res, next) {
   try {
-    const { accurate, accuracyNote } = req.body;
-    const activity = await ActivityLog.findByIdAndUpdate(
-      req.params.id,
-      { accurate: accurate === null ? null : Boolean(accurate), accuracyNote: accuracyNote || "" },
-      { new: true }
-    );
+    const {
+      accurate, accuracyNote,
+      qualityScoreFinal, readabilityScoreFinal,
+      scoreManuallyAdjusted, adjustmentNote, faithfulToMcpResult
+    } = req.body;
+
+    const update = {
+      accurate: accurate === null ? null : (accurate === undefined ? undefined : Boolean(accurate)),
+      ...(accuracyNote !== undefined ? { accuracyNote } : {}),
+      ...(qualityScoreFinal !== undefined ? { qualityScoreFinal: qualityScoreFinal === null ? null : Number(qualityScoreFinal) } : {}),
+      ...(readabilityScoreFinal !== undefined ? { readabilityScoreFinal: readabilityScoreFinal === null ? null : Number(readabilityScoreFinal) } : {}),
+      ...(scoreManuallyAdjusted !== undefined ? { scoreManuallyAdjusted: Boolean(scoreManuallyAdjusted) } : {}),
+      ...(adjustmentNote !== undefined ? { adjustmentNote } : {}),
+      ...(faithfulToMcpResult !== undefined ? { faithfulToMcpResult: faithfulToMcpResult === null ? null : Boolean(faithfulToMcpResult) } : {})
+    };
+
+    const activity = await ActivityLog.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
     if (!activity) return res.status(404).json({ message: "Activity not found." });
     res.json(activity);
   } catch (error) {

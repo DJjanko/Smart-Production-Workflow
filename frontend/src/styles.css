@@ -780,9 +780,32 @@ select:focus {
 .comparisonSplitView { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .comparisonColumnHeader { font-size: 0.8rem; font-weight: 850; color: #72818a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
 
-.comparisonRow { cursor: pointer; }
+.comparisonRow { cursor: pointer; min-height: 64px; }
+.comparisonRow:nth-child(even) { background: #f4f8f9; }
 .comparisonRow.accuracy-correct  { border-left-color: #1f7b52 !important; }
 .comparisonRow.accuracy-incorrect { border-left-color: #a13b3f !important; }
+
+.comparisonRowMain { display: flex; flex-direction: column; gap: 5px; }
+.comparisonRowCmd { font-size: 0.8rem; color: #72818a; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+.comparisonRowMeta { display: flex; gap: 5px; flex-wrap: wrap; }
+
+.comparisonTag { display: inline-block; font-size: 0.68rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
+.llmTag    { background: #ece8f8; color: #4a3070; }
+.llmOffTag { background: #f0f0f0; color: #8a99a3; }
+.guardTag  { background: #d6f0e5; color: #1a5e3f; }
+.noGuardTag { background: #f8dddd; color: #8a2a2d; }
+.scoreTag  { background: #dff0fa; color: #1a5f82; }
+.rScore    { background: #fff1d8; color: #7a4d06; }
+
+.filterGroupSeparated { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.flagGroup { border-left: 2px solid #e8eef1; padding-left: 10px; }
+.flagBtn { font-size: 0.8rem; }
+.providerToggleBtn.flagBtn.active { background: #4a3070; border-color: #6b4fa0; color: #fff; }
+.providerToggleBtn.flagBtn.active.llmAnswer { background: #4a3070; border-color: #6b4fa0; color: #fff; }
+
+.statsTable tr:nth-child(even) td { background: #f7f9fa; }
+.statsTable th:nth-child(8), .statsTable td:nth-child(8) { width: 7%; }
+.statsTable th:nth-child(9), .statsTable td:nth-child(9) { width: 7%; }
 
 .accuracyBadge { display: inline-block; font-size: 0.72rem; font-weight: 750; padding: 2px 7px; border-radius: 4px; }
 .accuracyBadge.accurate   { background: #d6f0e5; color: #1a5e3f; }
@@ -811,6 +834,31 @@ select:focus {
   width: auto !important;
 }
 
+.scoreRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.scoreRow label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: #4a6270;
+  font-weight: 750;
+}
+
+.scoreSelect {
+  padding: 4px 8px;
+  border: 1px solid #d8e1e4;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  background: #f7f9fa;
+  cursor: pointer;
+}
+
 .statsTableWrap { overflow-x: auto; }
 .statsTable { width: 100%; border-collapse: collapse; font-size: 0.84rem; table-layout: fixed; }
 .statsTable th { text-align: left; padding: 6px 8px; background: #f4f8f9; border-bottom: 2px solid #d8e1e4; font-size: 0.72rem; color: #72818a; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
@@ -825,6 +873,27 @@ select:focus {
 .statsTable tr:hover td { background: #f7fbfc; }
 .statsTable td.correct { color: #1f7b52; font-weight: 750; }
 .statsTable td.incorrect { color: #a13b3f; font-weight: 750; }
+
+/* ── Merged provider table ───────────────────────────────────────────── */
+.mergedStatsTable { table-layout: fixed; width: 100%; }
+.mergedStatsTable th { text-align: center; font-size: 0.68rem; padding: 5px 4px; }
+.mergedStatsTable td { text-align: center; font-size: 0.8rem; padding: 5px 4px; border-bottom: 1px solid rgba(0,0,0,0.04); }
+/* Function name column — max-width:0 is the reliable trick for text-overflow in fixed tables */
+.mergedStatsTable td.mstFnCol {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.mergedStatsTable th.mstFnCol {
+  text-align: left;
+  white-space: nowrap;
+}
+.mergedStatsTable .mstFnCol code { font-size: 0.74rem; color: #1b2a31; font-weight: 750; }
+.mergedStatsTable th.mstFnCol { background: #f4f8f9; color: #5a6870; text-align: left; vertical-align: bottom; border-bottom: 2px solid #d8e1e4; }
+.mergedStatsTable .mstUntested { color: #b8c8cf; }
+.mergedStatsTable tr:hover td { filter: brightness(0.96); }
 .providerChip { display: inline-block; font-size: 0.72rem; font-weight: 750; padding: 2px 7px; border-radius: 4px; }
 .providerChip.openai { background: #dff0fa; color: #1a5f82; }
 .providerChip.ollama { background: #fff1d8; color: #7a4d06; }
@@ -841,6 +910,132 @@ select:focus {
 .barChartTrack { height: 16px; background: #e8eef1; border-radius: 4px; overflow: hidden; }
 .barChartBar { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
 .barChartValue { font-size: 0.78rem; font-weight: 750; color: #4a6270; text-align: right; white-space: nowrap; }
+
+.barChartLegend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid #eef3f5;
+  margin-bottom: 6px;
+}
+.barChartLegendItem { display: flex; align-items: center; font-size: 0.82rem; font-weight: 750; color: #4a6270; gap: 2px; transition: opacity 0.15s; }
+.barChartLegendMetric { margin-left: auto; font-size: 0.8rem; font-weight: 850; color: #176b87; }
+
+/* New grouped bar chart */
+.barChartGroup2 { display: grid; grid-template-columns: 200px 1fr; gap: 6px 12px; align-items: center; padding: 6px 4px; }
+.barChartGroup2.even { background: #f4f8f9; border-radius: 5px; }
+.barChartGroup2.untestedGroup { opacity: 0.45; }
+.barChartFnLabel { display: flex; flex-direction: column; gap: 2px; padding-right: 8px; }
+.barChartFnLabel code { font-size: 0.78rem; color: #1b2a31; font-weight: 750; word-break: break-all; }
+.barChartBars { display: flex; flex-direction: column; gap: 3px; }
+.barChartBar2Row { display: grid; grid-template-columns: 60px 1fr 56px; align-items: center; gap: 8px; }
+.barChartBar2Label { font-size: 0.72rem; font-weight: 800; transition: color 0.15s; }
+.barChartBar2Track { height: 14px; background: #e8eef1; border-radius: 3px; overflow: hidden; }
+.barChartBar2 { height: 100%; border-radius: 3px; transition: width 0.35s ease, background 0.2s; }
+.barChartBar2Value { font-size: 0.75rem; font-weight: 750; color: #4a6270; text-align: right; white-space: nowrap; }
+
+/* ── Compact metric header cards (ComparisonPage) ─────────────────────── */
+.compactMetrics {
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.compactMetrics .metric {
+  padding: 7px 10px;
+  gap: 3px 7px;
+}
+.compactMetrics .metricIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+.compactMetrics .metricIcon svg { width: 13px; height: 13px; }
+.compactMetrics .metric span  { font-size: 0.68rem; }
+.compactMetrics .metric strong { font-size: 0.95rem; }
+.compactMetrics .metric p     { font-size: 0.62rem !important; margin-top: 0 !important; }
+
+/* ── Vertical grouped bar chart (columns = MCP functions) ─────────────── */
+.barChartScrollWrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 145px; /* room for diagonal 45° labels — longest name ~33 chars */
+}
+.barChartCanvas {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0;
+  min-width: max-content;
+  border-bottom: 2px solid #d8e1e4;
+  overflow: visible;
+}
+.barChartFnCol {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 32px;
+  height: 100%;
+  padding: 0 3px;
+  position: relative;
+  transition: background 0.1s;
+  overflow: visible;
+}
+.barChartFnCol.even { background: rgba(232, 241, 246, 0.82); border-radius: 4px 4px 0 0; }
+.barChartFnCol:hover { background: rgba(207, 228, 238, 0.7) !important; }
+.barChartFnCol.untestedFnCol { opacity: 0.28; }
+.barChartFnBars {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.barChartFnBar {
+  width: 12px;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.4s ease, background 0.15s;
+  cursor: help;
+  flex-shrink: 0;
+}
+/* Diagonal function name below the baseline */
+.barChartFnName {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform-origin: top left;
+  transform: rotate(45deg);
+  white-space: nowrap;
+  pointer-events: none;
+  overflow: visible;
+}
+.barChartFnName code {
+  font-size: 0.56rem;
+  color: #34444b;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Metric row */
+.chartMetricRow { display: flex; align-items: center; gap: 8px; padding: 8px 0; justify-content: flex-end; flex-wrap: wrap; }
+.chartMetricLabel { font-size: 0.8rem; color: #72818a; font-weight: 750; margin-right: 4px; }
+.chartMetricBtn {
+  padding: 5px 12px;
+  border: 1px solid #d8e1e4;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 750;
+  background: #f7f9fa;
+  color: #4a6270;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.chartMetricBtn:hover { background: #eef3f5; }
+.chartMetricBtn.selected { background: #176b87; color: #fff; border-color: #176b87; }
 
 .untestedRow td { color: #b0bec5; font-style: italic; }
 .untestedGroup { opacity: 0.5; }

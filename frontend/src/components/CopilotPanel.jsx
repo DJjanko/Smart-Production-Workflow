@@ -183,8 +183,8 @@ export function CopilotPanel({
   const [activityOpen, setActivityOpen] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState(null);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [useGuard, setUseGuard] = useState(true);
-  const [naturalResponse, setNaturalResponse] = useState(false);
+  const [useGuard, setUseGuard] = useState(false);
+  const [naturalResponse, setNaturalResponse] = useState(true);
 
   function useExample(text) {
     setCommand(text);

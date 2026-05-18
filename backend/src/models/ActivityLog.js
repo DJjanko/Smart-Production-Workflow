@@ -12,7 +12,15 @@ const activityLogSchema = new mongoose.Schema(
     accurate: { type: Boolean, default: null },
     accuracyNote: { type: String, default: "" },
     useGuard: { type: Boolean, default: null },
-    naturalResponse: { type: Boolean, default: false }
+    naturalResponse: { type: Boolean, default: false },
+    qualityScoreAuto: { type: Number, default: null },
+    readabilityScoreAuto: { type: Number, default: null },
+    qualityScoreFinal: { type: Number, default: null },
+    readabilityScoreFinal: { type: Number, default: null },
+    scoreManuallyAdjusted: { type: Boolean, default: false },
+    adjustmentNote: { type: String, default: "" },
+    evaluatorReason: { type: String, default: "" },
+    faithfulToMcpResult: { type: Boolean, default: null }
   },
   { timestamps: true }
 );

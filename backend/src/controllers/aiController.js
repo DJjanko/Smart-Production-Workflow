@@ -4,6 +4,7 @@ import { executeMcpTool } from "../services/mcp/tools.js";
 import { interpretCommand } from "../services/workflowService.js";
 import { interpretCommandWithProvider } from "../services/llm/index.js";
 import { formatMcpResponse } from "../services/llm/responseFormatter.js";
+import { evaluateResponse } from "../services/llm/evaluator.js";
 
 const PENDING_ACTION_TTL_MS = 30 * 60 * 1000;
 
@@ -63,6 +64,7 @@ export async function runCommand(req, res, next) {
         : null;
 
       let naturalText = null;
+      let evalScores = null;
       if (naturalResponse && !pendingAction && toolResult.statusCode < 300) {
         naturalText = await formatMcpResponse({
           command,
@@ -72,6 +74,13 @@ export async function runCommand(req, res, next) {
           language
         });
         if (naturalText) {
+          evalScores = await evaluateResponse({
+            prompt: command,
+            intent: interpreted.intent,
+            mcpResult: toolResult.result,
+            naturalText,
+            provider
+          });
           await ActivityLog.create({
             actor: req.user.name || "admin",
             action: "llm_natural_response",
@@ -79,7 +88,8 @@ export async function runCommand(req, res, next) {
             mcpTool: interpreted.intent,
             input: { command },
             output: { naturalText },
-            durationMs: 0
+            durationMs: 0,
+            ...(evalScores || {})
           });
         }
       }
